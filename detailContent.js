@@ -50,6 +50,35 @@ async function scrapData(deviceId) {
     return out;
   };
 
+  function robustScrapeListSection(headingTitle) {
+    const heading = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6")).find(
+      (h) => h.textContent.trim().toLowerCase() === headingTitle.toLowerCase()
+    );
+
+    if (!heading) return {};
+
+    let container = heading.parentElement;
+    let ul = heading.nextElementSibling;
+
+    if (!ul || ul.tagName !== "UL") {
+      ul = container.querySelector("ul");
+    }
+
+    if (!ul) return {};
+
+    const out = {};
+    ul.querySelectorAll("li").forEach((li) => {
+      const label = li.querySelector(".bbfa5352")?.textContent?.trim();
+      const value = li.querySelector("._249434d2")?.textContent?.trim();
+
+      if (label && value && !(label in out)) {
+        out[label] = value;
+      }
+    });
+
+    return out;
+  }
+
   const getRegulatory = () => {
     const container =
       document.querySelector("div.ec122524._169c4895._07c05f81") ||
@@ -234,7 +263,9 @@ async function scrapData(deviceId) {
       ),
       verified: !!document.querySelector("[aria-label='Property Verified Button']"),
       amenities: getAmenities(),
-      propertyInformation: scrapeListSection("Property Information"),
+      propertyInformation: Object.keys(scrapeListSection("Property Information")).length === 0
+        ? robustScrapeListSection("Property Information")
+        : scrapeListSection("Property Information"),
       buildingInformation: scrapeListSection("Building Information"),
       validatedInformation: scrapeListSection("Validated Information"),
       projectInformation: scrapeListSection("Project Information"),
