@@ -260,6 +260,7 @@ async function scrapData(deviceId) {
 
     const result = await response.json();
     console.log("Sent to API:", result);
+    reportScrapeSuccess();
     window.close();
   } catch (err) {
     console.error("Failed to send data to API:", err);
@@ -295,3 +296,11 @@ window.addEventListener("load", async () => {
     }
   });
 });
+
+function reportScrapeSuccess() {
+  chrome.runtime.sendMessage({ type: "SCRAPE_SUCCESS" });
+}
+
+function reportScrapeFailure() {
+  chrome.runtime.sendMessage({ type: "SCRAPE_FAILED" });
+}

@@ -65,6 +65,11 @@ function runAutomation() {
   const firstBatch = uniqueUrls.slice(0, half);
   const secondBatch = uniqueUrls.slice(half);
 
+  chrome.runtime.sendMessage({
+    type: "LISTINGS_COUNT",
+    count: uniqueUrls.length,
+  });
+
   chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: firstBatch });
 
   setTimeout(() => {

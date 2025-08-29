@@ -35,6 +35,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Open listing URLs in tabs
     openUrlsInBatches(message.urls);
   }
+
+  if (message.type === "LISTINGS_COUNT") {
+    chrome.storage.local.get("progress", (data) => {
+      const progress = data.progress || {};
+      progress.totalListings = (progress.totalListings || 0) + message.count;
+      progress.lastUpdated = new Date().toISOString();
+      chrome.storage.local.set({ progress });
+    });
+  }
+
 });
 
 // Listen for messages from popup or cotent and send device id
@@ -67,6 +77,7 @@ async function startCategoryScraping() {
           console.log("🔒 Category locked and stored:", currentCategory.categoryName);
         });
         openCurrentCategory(currentCategory);
+        initProgressForCategory(json.data._id);
       } else {
         console.warn("No more categories.");
       }
@@ -160,8 +171,54 @@ chrome.runtime.onConnect.addListener((port) => {
     if (message.type === "CATEGORY_DONE") {
       unlockAndMoveToNextCategory().then(() => {
         port.postMessage({ status: "done" }); // respond
+        markProgressAsDone();
         startCategoryScraping();
       });
     }
   });
 });
+
+
+function initProgressForCategory(categoryId) {
+  const progress = {
+    categoryId,
+    totalListings: 0,
+    scraped: 0,
+    failed: 0,
+    status: "running",
+    lastUpdated: new Date().toISOString(),
+  };
+  chrome.storage.local.set({ progress });
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "SCRAPE_SUCCESS") {
+    updateProgress("scraped");
+  }
+  if (message.type === "SCRAPE_FAILED") {
+    updateProgress("failed");
+  }
+});
+
+function updateProgress(type) {
+  chrome.storage.local.get("progress", (data) => {
+    const progress = data.progress || {};
+    if (!progress) return;
+
+    if (type === "scraped") progress.scraped = (progress.scraped || 0) + 1;
+    if (type === "failed") progress.failed = (progress.failed || 0) + 1;
+
+    progress.lastUpdated = new Date().toISOString();
+
+    chrome.storage.local.set({ progress });
+  });
+}
+
+function markProgressAsDone() {
+  chrome.storage.local.get("progress", (data) => {
+    const progress = data.progress || {};
+    progress.status = "done";
+    progress.lastUpdated = new Date().toISOString();
+    chrome.storage.local.set({ progress });
+  });
+}
