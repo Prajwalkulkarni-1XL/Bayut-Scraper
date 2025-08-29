@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Bayut Scraper",
+  "version": "2.0",
+  "description": "Extracts property data from Bayut and navigates categories.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://www.bayut.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.bayut.com/for-sale/*"],
+      "js": ["listingContent.js"]
+    },
+    {
+      "matches": ["https://www.bayut.com/property/*"],
+      "js": ["detailContent.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["detailContent.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
