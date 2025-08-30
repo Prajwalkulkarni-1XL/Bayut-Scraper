@@ -231,6 +231,38 @@ async function scrapData(deviceId) {
     return allResults;
   }
 
+  function extractImageUrls() {
+    const imageUrls = new Set();
+
+    // Selector for both main and thumbnail image containers
+    const imageContainers = [
+      document.querySelector("div._7be482e1"),
+      document.querySelector("div._2e756e1e")
+    ];
+
+    imageContainers.forEach(container => {
+      if (!container) return;
+
+      // Extract from <img src="...">
+      container.querySelectorAll("img").forEach(img => {
+        const src = img.getAttribute("src");
+        if (src && src.startsWith("http")) {
+          imageUrls.add(src);
+        }
+      });
+
+      // Also extract from <source srcset="..."> (e.g. webp)
+      container.querySelectorAll("source").forEach(source => {
+        const srcset = source.getAttribute("srcset");
+        if (srcset && srcset.startsWith("http")) {
+          imageUrls.add(srcset);
+        }
+      });
+    });
+
+    return Array.from(imageUrls);
+  }
+
   const priceText = text("span[aria-label='Price']") || text("span._105b8a67");
   const priceNum = priceText
     ? parseInt(priceText.replace(/[^\d]/g, ""), 10)
@@ -272,6 +304,7 @@ async function scrapData(deviceId) {
       regulatoryInformation: getRegulatory(),
       similarPropertyTransactions: similarTransactions,
       propertyId: window.location.pathname.split("-").pop().split(".")[0],
+      imageUrls: extractImageUrls(),
       rawHtmlSnippet:
         document.querySelector("body")?.innerText?.slice(0, 2000) || null,
     },
