@@ -274,6 +274,11 @@ async function scrapData(deviceId) {
   const beds = document.querySelector('[aria-label="Beds"]').innerText;
   const baths = document.querySelector('[aria-label="Baths"]').innerText;
 
+  const areaNum = parseFloat((area || "").replace(/[^\d.]/g, "")) || null;
+  const perSqft = priceNum && areaNum
+    ? Number((Number(priceNum) / Number(areaNum)).toFixed(2))
+    : null;
+
   const payload = {
     url: window.location.href,
     deviceId,
@@ -285,6 +290,7 @@ async function scrapData(deviceId) {
       priceCurrency: text("span[aria-label='Currency']") || "AED",
       beds,
       baths,
+      totalPerSqft: perSqft,
       location:
         text("div[aria-label='Property header']") || text("div._4d1141a9"),
       description:

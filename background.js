@@ -1,4 +1,8 @@
 let currentCategory = null;
+let isPaused = false;
+let isStopped = false;
+let urlQueue = [];
+let processing = false;
 
 // Constants
 const API_BASE_URL = "http://localhost:8000/api";
@@ -9,6 +13,127 @@ const CATEGORY_UNLOCK_ENDPOINT = `${API_BASE_URL}/category/unlock`;
 // Change according to need
 const TAB_OPEN_DELAY = 1000;
 // -----------------------------------------------
+
+// Save flags
+function saveFlagsToStorage() {
+  chrome.storage.local.set(
+    { scraperFlags: { isPaused, isStopped } },
+    () => console.log("Saved flags:", { isPaused, isStopped })
+  );
+}
+
+// Ensure flags are loaded from storage on startup / service worker start
+async function loadFlagsFromStorage() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["scraperFlags"], (data) => {
+      const flags = data.scraperFlags || {};
+      isPaused = !!flags.isPaused;
+      isStopped = !!flags.isStopped;
+      console.log("Loaded flags from storage:", { isPaused, isStopped });
+      resolve(flags);
+    });
+  });
+}
+
+// Persist flags to storage
+// function saveFlagsToStorage() {
+//   chrome.storage.local.set({ scraperFlags: { isPaused: !!isPaused, isStopped: !!isStopped } }, () => {
+//     console.log("Saved flags to storage:", { isPaused, isStopped });
+//   });
+// }
+
+// function saveFlagsToStorage() {
+//   chrome.storage.local.set(
+//     { scraperFlags: { isPaused: !!isPaused, isStopped: !!isStopped } },
+//     () => console.log("Saved flags:", { isPaused, isStopped })
+//   );
+// }
+
+
+// STOP resets everything
+
+function stopScraping() {
+  isStopped = true;
+  isPaused = false;
+  urlQueue = [];              // ✅ empty queue permanently
+  processing = false;         // ✅ break loop
+  saveFlagsToStorage();
+  console.log("🛑 STOPPED: queue cleared, scraping halted");
+
+  chrome.storage.local.remove(["currentCategory", "progress"], () => {
+    console.log("Cleared currentCategory and progress from storage");
+  });
+}
+
+// Enqueue & process URLs
+function enqueueUrls(urls) {
+  if (isStopped) return; // ✅ don’t add if stopped
+  urlQueue.push(...urls);
+  if (!processing) processQueue();
+}
+
+// async function processQueue() {
+//   processing = true;
+//   while (urlQueue.length > 0) {
+//     if (isStopped) {
+//       urlQueue = [];
+//       break;
+//     }
+//     if (isPaused) {
+//       await new Promise(res => setTimeout(res, 1000));
+//       continue;
+//     }
+
+//     const url = urlQueue.shift();
+//     if (url) chrome.tabs.create({ url, active: false });
+
+//     await new Promise(res => setTimeout(res, TAB_OPEN_DELAY));
+//   }
+//   processing = false;
+// }
+// On service worker start - load flags
+
+async function processQueue() {
+  if (processing) return;
+  processing = true;
+  console.log("🔁 processQueue started");
+
+  while (urlQueue.length > 0) {
+    // ⬇️ always check fresh flags from chrome.storage
+    const flags = await new Promise((resolve) => {
+      chrome.storage.local.get(["scraperFlags"], (data) => {
+        resolve(data.scraperFlags || { isPaused: false, isStopped: false });
+      });
+    });
+
+    if (flags.isStopped) {
+      console.log("🛑 STOP detected -> clearing queue and exiting loop.");
+      urlQueue = [];
+      break;
+    }
+
+    if (flags.isPaused) {
+      console.log("⏸ Paused: waiting...");
+      await new Promise((res) => setTimeout(res, 1000)); // wait 1s
+      continue; // loop again → re-check flags
+    }
+
+    const url = urlQueue.shift();
+    if (!url) continue;
+
+    console.log("Opening tab:", url);
+    await new Promise((resolve) =>
+      chrome.tabs.create({ url, active: false }, () => resolve())
+    );
+
+    await new Promise((res) => setTimeout(res, TAB_OPEN_DELAY));
+  }
+
+  processing = false;
+  console.log("✅ processQueue finished");
+}
+
+loadFlagsFromStorage();
 
 // When the extension is installed, generate and store a device ID
 chrome.runtime.onInstalled.addListener(() => {
@@ -28,7 +153,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "START_SCRAPING") {
     // Start the scraping process
+    isPaused = false;
+    isStopped = false;
+    saveFlagsToStorage();
     startCategoryScraping();
+  }
+
+   if (message.type === "PAUSE_SCRAPING") {
+    isPaused = true;
+    saveFlagsToStorage();
+    // if (message.persistent) saveFlagsToStorage();
+    // console.log("⏸️ Scraping paused (persistent:", !!message.persistent, ")");
+  
+  }
+
+  if (message.type === "RESUME_SCRAPING_DATA") {
+    isPaused = false;
+    saveFlagsToStorage();
+  }
+
+  if (message.type === "STOP_SCRAPING") {
+     stopScraping();
+  }
+
+  if (message.type === "RESUME_SCRAPING1") {
+    chrome.storage.local.get("lastOpened", (data) => {
+      console.log("lastOpened>>>>>>>>", data.lastOpened);
+      //   data.parentUrl
+      //     ? openCurrentCategory({ categoryUrl: data.parentUrl })
+      chrome.tabs.create({ url: data.lastOpened.parentUrl });
+    });
   }
 
   if (message.type === "OPEN_URLS") {
@@ -124,7 +278,6 @@ function unlockAndMoveToNextCategory() {
   });
 }
 
-
 // Open the category URL in a new tab and inject the automation script
 function openCurrentCategory(category) {
   chrome.tabs.create({ url: category.categoryUrl }, (tab) => {
@@ -139,25 +292,77 @@ function openCurrentCategory(category) {
   });
 }
 
+let parentUrl = null;
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "SET_PARENT") {
+    parentUrl = msg.parentUrl;
+    console.log("parentUrl>>>>>>>>", parentUrl);
+  }
+});
+
 // Open listing URLs in new tabs, one at a time with delay
 function openUrlsInBatches(urls) {
   console.log(`Opening ${urls.length} URLs...`);
   let index = 0;
 
+  urlQueue = urlQueue.concat(urls);
+
   function openNext() {
-    if (index >= urls.length) return;
+   if (urlQueue.length === 0) return; // ✅ nothing left
+    chrome.storage.local.get(["scraperFlags"], ({ scraperFlags }) => {
+      // const paused = !!(scraperFlags && scraperFlags.isPaused);
+      // const stopped = !!(scraperFlags && scraperFlags.isStopped);
+      const paused = scraperFlags?.isPaused;
+      const stopped = scraperFlags?.isStopped;
+     if (stopped) {
+      console.log("🛑 Stopped (persisted): no more URLs will be opened.");
+      urlQueue = []; // ✅ clear
+      return;
+    }
 
-    const url = urls[index];
+    // pause: keep waiting until resumed
+    if (paused) {
+      setTimeout(openNext, 1000); // retry check after 1 second
+      return;
+    }
+    
+     const url = urlQueue.shift(); // ✅ take next
+      if (!url) return;
 
-    chrome.tabs.create({ url, active: false }, (tab) => { });
+    // if (index >= urls.length) return;
 
+    // const url = urls[index];
+
+    // chrome.tabs.create({ url, active: false }, (tab) => { });
+
+    // chrome.tabs.create({ url, active: false });
+      // chrome.tabs.create({ url, active: false }, (tab) => { });
+    chrome.tabs.create({ url, active: false }, () => {
+      // 💾 Save the last opened URL + index
+      chrome.storage.local.set(
+        {
+          lastOpened: {
+            parentUrl: parentUrl,
+            url,
+            index,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        () => {
+          console.log("💾 Saved last opened:", url, "at index:", index);
+        }
+      );
+    });
+      setTimeout(openNext, TAB_OPEN_DELAY);
     index++;
     // Wait before opening next tab
-    setTimeout(openNext, TAB_OPEN_DELAY);
+    // setTimeout(openNext, TAB_OPEN_DELAY);
+   });
   }
 
   // Start opening URLs
   openNext();
+   
 }
 
 // If background message closed then communicate over port
@@ -177,7 +382,6 @@ chrome.runtime.onConnect.addListener((port) => {
     }
   });
 });
-
 
 function initProgressForCategory(categoryId) {
   const progress = {
@@ -222,3 +426,5 @@ function markProgressAsDone() {
     chrome.storage.local.set({ progress });
   });
 }
+
+
