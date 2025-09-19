@@ -92,7 +92,8 @@
       margin-top: 5px;
       color: #555;
     }
-     #results {
+
+    #results {
       margin-top: 15px;
       padding: 10px;
       background: #fff;
@@ -103,12 +104,14 @@
       color: #333;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
+
     button.secondary {
-        background-color: #0095ff;
-      }
-      button.secondary:hover {
-        background-color: #2372a6;
-      }
+      background-color: #0095ff;
+    }
+
+    button.secondary:hover {
+      background-color: #2372a6;
+    }
   </style>
 </head>
 
@@ -118,8 +121,8 @@
   <button id="startScraping">🚀 Start Scraping</button>
   <button id="pauseScraping">⏸ Pause</button>
   <button id="resumeScraping" style="display:none;">🔄 Resume</button>
-  <button id="stopScraping">🛑 Stop</button>
-  <button id="resumeScraping1" class="secondary">⏯️ Resume Scraping</button>
+  <!-- <button id="stopScraping">🛑 Stop</button> -->
+  <button id="quickresumeScraping" class="secondary">⏯️ Quick Resume </button>
 
   <div id="progress">
     <h4>📊 Progress</h4>
@@ -152,10 +155,6 @@
     <button id="refreshProgress">🔄 Refresh</button>
     <div id="lastUpdated">Last Updated: N/A</div>
   </div>
-
-    <h4>📋 Extracted Data</h4>
-  <div id="results">Loading...</div>
-  
   <script src="popup.js"></script>
 </body>
 
