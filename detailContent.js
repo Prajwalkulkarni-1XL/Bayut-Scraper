@@ -20,11 +20,13 @@ function storeErrorInExtensionStorage(error, context = "General") {
     const existingErrors = result.scrapeErrors || [];
     existingErrors.push(newError);
     chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {
-      console.log("📝 Error stored in extension storage:", newError);
     });
   });
 }
 
+/**
+ * Main data extraction logic from the property detail page
+ */
 async function scrapData(deviceId) {
   const text = (sel) => document.querySelector(sel)?.innerText?.trim() || null;
 
@@ -102,6 +104,7 @@ async function scrapData(deviceId) {
     );
 
     if (moreAmenities) {
+      // Case 1: Grouped amenities section
       document
         .querySelectorAll("div._791bcb34, div._amenities")
         .forEach((cat) => {
@@ -123,6 +126,7 @@ async function scrapData(deviceId) {
           }
         });
     } else {
+      // Case 2: Flat list parsing (fallback)
       const items = Array.from(
         document.querySelectorAll("div.c20d971e span.c0327f5b, .amenity .name")
       )
@@ -138,7 +142,7 @@ async function scrapData(deviceId) {
   };
 
   function realClick(el) {
-    el.click(); 
+    el.click(); // native click
     const evt = new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
@@ -152,6 +156,7 @@ async function scrapData(deviceId) {
 
   async function scrapeTransactions() {
     await wait(2000);
+    // find the correct container
     const mainContainers = document.querySelectorAll("div._8a2b3961");
     let targetContainer = null;
     mainContainers.forEach((container) => {
@@ -165,12 +170,14 @@ async function scrapData(deviceId) {
     if (!targetContainer) {
       return;
     }
+    // check for main filter buttons
     const mainButtons = targetContainer.querySelectorAll("button.c6cb1d19");
     const allResults = [];
 
     const scrapeTable = (mainCategory, subCategory) => {
       const table = targetContainer.querySelector(".f6181c08");
       if (!table) return [];
+      // get headers text as array
       const headers = [...table.querySelectorAll("thead th")].map((h) =>
         h.innerText.trim()
       );
@@ -186,6 +193,7 @@ async function scrapData(deviceId) {
             .toLowerCase()
             .replace(/\s*\(.*?\)/g, "")
             .trim();
+            // ↓ normalize: "Area (sqft)" -> "area", "Price" -> "price"
           const normalizedKey = key.replace(/\s+/g, "_");
           record[normalizedKey] = cols[i]
             ? cols[i].innerText.replace(/\s+/g, " ").trim()
@@ -196,9 +204,11 @@ async function scrapData(deviceId) {
     };
 
     if (mainButtons.length > 0) {
+      // ✅ Case 1: has main buttons
       for (const mainBtn of mainButtons) {
         realClick(mainBtn);
         await wait(4000);
+        // re-query sub buttons after each main click
         const subButtons = targetContainer.querySelectorAll("._9771ddac span");
         for (const subBtn of subButtons) {
           realClick(subBtn);
@@ -208,6 +218,7 @@ async function scrapData(deviceId) {
         }
       }
     } else {
+       // ✅ Case 2: no main buttons → directly loop sub buttons
       const subButtons = targetContainer.querySelectorAll("._9771ddac span");
       for (const subBtn of subButtons) {
         realClick(subBtn);
@@ -222,6 +233,7 @@ async function scrapData(deviceId) {
   function extractImageUrls() {
     const imageUrls = new Set();
 
+    // Selector for both main and thumbnail image containers
     const imageContainers = [
       document.querySelector("div._7be482e1"),
       document.querySelector("div._2e756e1e")
@@ -230,6 +242,7 @@ async function scrapData(deviceId) {
     imageContainers.forEach(container => {
       if (!container) return;
 
+      // Extract from <img src="...">
       container.querySelectorAll("img").forEach(img => {
         const src = img.getAttribute("src");
         if (src && src.startsWith("http")) {
@@ -237,6 +250,7 @@ async function scrapData(deviceId) {
         }
       });
 
+      // Also extract from <source srcset="..."> (e.g. webp)
       container.querySelectorAll("source").forEach(source => {
         const srcset = source.getAttribute("srcset");
         if (srcset && srcset.startsWith("http")) {
@@ -253,10 +267,11 @@ async function scrapData(deviceId) {
     ? parseInt(priceText.replace(/[^\d]/g, ""), 10)
     : null;
 
+    // Scrape similar transactions
   const similarTransactions = await scrapeTransactions();
-  const area = document.querySelector('[aria-label="Area"]').innerText;
-  const beds = document.querySelector('[aria-label="Beds"]').innerText;
-  const baths = document.querySelector('[aria-label="Baths"]').innerText;
+  const area = document.querySelector('[aria-label="Area"]')?.innerText;
+  const beds = document.querySelector('[aria-label="Beds"]')?.innerText;
+  const baths = document.querySelector('[aria-label="Baths"]')?.innerText;
 
   const areaNum = parseFloat((area || "").replace(/[^\d.]/g, "")) || null;
   const perSqft = priceNum && areaNum
@@ -300,8 +315,7 @@ async function scrapData(deviceId) {
     },
   };
 
-  console.log("📦 Extracted Full Payload:", payload);
-
+  // Send extracted data to the backend API
   try {
     const response = await fetch(`${API_BASE_URL}/scrapData`, {
       method: "POST",
@@ -312,13 +326,13 @@ async function scrapData(deviceId) {
     });
 
     const result = await response.json();
-    console.log("Sent to API:", result);
     reportScrapeSuccess();
     window.close();
   } catch (err) {
     console.error("Failed to send data to API:", err);
     storeErrorInExtensionStorage(err, "Failed to send data to API");
 
+    // Report error to your backend
     await fetch(`${API_BASE_URL}/err`, {
       method: "POST",
       headers: {

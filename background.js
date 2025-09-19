@@ -4,12 +4,17 @@ let isStopped = false;
 let urlQueue = [];
 let processing = false;
 
+// Constants
 const API_BASE_URL = "http://localhost:8000/api";
 const CATEGORY_NEXT_ENDPOINT = `${API_BASE_URL}/category/next`;
 const CATEGORY_UNLOCK_ENDPOINT = `${API_BASE_URL}/category/unlock`;
 
+// -----------------------------------------------
+// Change according to need
 const TAB_OPEN_DELAY = 500;
+// -----------------------------------------------
 
+// When the extension is installed, generate and store a device ID
 function saveFlagsToStorage() {
   chrome.storage.local.set(
     { scraperFlags: { isPaused, isStopped } },
@@ -17,13 +22,13 @@ function saveFlagsToStorage() {
   );
 }
 
+// Listen for messages from popup or content
 async function loadFlagsFromStorage() {
   return new Promise((resolve) => {
     chrome.storage.local.get(["scraperFlags"], (data) => {
       const flags = data.scraperFlags || {};
       isPaused = !!flags.isPaused;
       isStopped = !!flags.isStopped;
-      console.log("Loaded flags from storage:", { isPaused, isStopped });
       resolve(flags);
     });
   });
@@ -35,10 +40,8 @@ function stopScraping() {
   urlQueue = [];              
   processing = false;         
   saveFlagsToStorage();
-  console.log("🛑 STOPPED: queue cleared, scraping halted");
 
   chrome.storage.local.remove(["currentCategory", "progress"], () => {
-    console.log("Cleared currentCategory and progress from storage");
   });
 }
 
@@ -51,7 +54,6 @@ function enqueueUrls(urls) {
 async function processQueue() {
   if (processing) return;
   processing = true;
-  console.log("🔁 processQueue started");
 
   while (urlQueue.length > 0) {
     const flags = await new Promise((resolve) => {
@@ -61,13 +63,11 @@ async function processQueue() {
     });
 
     if (flags.isStopped) {
-      console.log("🛑 STOP detected -> clearing queue and exiting loop.");
       urlQueue = [];
       break;
     }
 
     if (flags.isPaused) {
-      console.log("⏸ Paused: waiting...");
       await new Promise((res) => setTimeout(res, 1000)); 
       continue; 
     }
@@ -75,7 +75,6 @@ async function processQueue() {
     const url = urlQueue.shift();
     if (!url) continue;
 
-    console.log("Opening tab:", url);
     await new Promise((resolve) =>
       chrome.tabs.create({ url, active: false }, () => resolve())
     );
@@ -84,7 +83,6 @@ async function processQueue() {
   }
 
   processing = false;
-  console.log("✅ processQueue finished");
 }
 
 loadFlagsFromStorage();
@@ -94,73 +92,143 @@ chrome.runtime.onInstalled.addListener(() => {
     if (!result.deviceId) {
       const newDeviceId = crypto.randomUUID();
       chrome.storage.local.set({ deviceId: newDeviceId }, () => {
-        console.log("New device ID saved:", newDeviceId);
       });
     }
   });
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("Background received:", message);
+// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
-  if (message.type === "START_SCRAPING") {
-    isPaused = false;
-    isStopped = false;
-    saveFlagsToStorage();
-    startCategoryScraping();
-  }
+//   if (message.type === "START_SCRAPING") {
+//     isPaused = false;
+//     isStopped = false;
+//     saveFlagsToStorage();
+//     startCategoryScraping();
+//   }
 
-   if (message.type === "PAUSE_SCRAPING") {
-    isPaused = true;
-    saveFlagsToStorage();
+//    if (message.type === "PAUSE_SCRAPING") {
+//     isPaused = true;
+//     saveFlagsToStorage();
   
-  }
+//   }
 
-  if (message.type === "RESUME_SCRAPING_DATA") {
-    isPaused = false;
-    saveFlagsToStorage();
-     chrome.storage.local.get("lastOpened", (data) => {
-    if (data?.lastOpened?.parentUrl) {
-      chrome.tabs.create({ url: data.lastOpened.parentUrl, active: true });
-      console.log("🔄 Resuming from category:", data.lastOpened.parentUrl);
-    } else {
-      console.warn("⚠️ No parentUrl found in storage. Cannot resume category properly.");
-    }
-  });
-  }
+//   if (message.type === "RESUME_SCRAPING_DATA") {
+//     isPaused = false;
+//     saveFlagsToStorage();
+//      chrome.storage.local.get("lastOpened", (data) => {
+//     if (data?.lastOpened?.parentUrl) {
+//       chrome.tabs.create({ url: data.lastOpened.parentUrl, active: true });
+//     } else {
+//       console.warn("⚠️ No parentUrl found in storage. Cannot resume category properly.");
+//     }
+//   });
+//   }
 
-  if (message.type === "STOP_SCRAPING") {
-     stopScraping();
-  }
+//   if (message.type === "STOP_SCRAPING") {
+//      stopScraping();
+//   }
 
-  if (message.type === "RESUME_SCRAPING1") {
-    chrome.storage.local.get("lastOpened", (data) => {
-    chrome.tabs.create({ url: data.lastOpened.parentUrl });
-    });
-  }
+//   if (message.type === "RESUME_SCRAPING1") {
+//     chrome.storage.local.get("lastOpened", (data) => {
+//     chrome.tabs.create({ url: data.lastOpened.parentUrl });
+//     });
+//   }
 
-  if (message.type === "OPEN_URLS") {
-    openUrlsInBatches(message.urls);
-  }
+//   if (message.type === "OPEN_URLS") {
+//     // Open listing URLs in tabs
+//     openUrlsInBatches(message.urls);
+//   }
 
-  if (message.type === "LISTINGS_COUNT") {
-    chrome.storage.local.get("progress", (data) => {
-      const progress = data.progress || {};
-      progress.totalListings = message.count;  // 👈 overwrite instead of accumulate
-      // progress.totalListings = (progress.totalListings || 0) + message.count;
-      progress.lastUpdated = new Date().toISOString();
-      chrome.storage.local.set({ progress });
-    });
-  }
+//   if (message.type === "LISTINGS_COUNT") {
+//     chrome.storage.local.get("progress", (data) => {
+//       const progress = data.progress || {};
+//       progress.totalListings = message.count;  
+//       progress.lastUpdated = new Date().toISOString();
+//       chrome.storage.local.set({ progress });
+//     });
+//   }
   
-});
+// });
+
+// // Listen for messages from popup or cotent and send device id
+// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+//   if (message.type === "GET_DEVICE_ID") {
+//     chrome.storage.local.get("deviceId", (result) => {
+//       sendResponse({ deviceId: result.deviceId });
+//     });
+//     return true; // keep message channel open
+//   }
+// });
+
+// Fetch and lock one category to start scraping & Listen for messages from popup or cotent and send device id
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "GET_DEVICE_ID") {
-    chrome.storage.local.get("deviceId", (result) => {
-      sendResponse({ deviceId: result.deviceId });
-    });
-    return true; 
+  switch (message.type) {
+    case "START_SCRAPING":
+      isPaused = false;
+      isStopped = false;
+      saveFlagsToStorage();
+      startCategoryScraping();
+      break;
+
+    case "PAUSE_SCRAPING":
+      isPaused = true;
+      saveFlagsToStorage();
+      break;
+
+    case "RESUME_SCRAPING_DATA":
+      isPaused = false;
+      saveFlagsToStorage();
+      chrome.storage.local.get("lastOpened", (data) => {
+        if (data?.lastOpened?.parentUrl) {
+          chrome.tabs.create({ url: data.lastOpened.parentUrl, active: true });
+        } else {
+          console.warn("⚠️ No parentUrl found in storage. Cannot resume category properly.");
+        }
+      });
+      break;
+
+    case "STOP_SCRAPING":
+      stopScraping();
+      break;
+
+    case "RESUME_SCRAPING1":
+      chrome.storage.local.get("lastOpened", (data) => {
+        if (data?.lastOpened?.parentUrl) {
+          chrome.tabs.create({ url: data.lastOpened.parentUrl });
+        }
+      });
+      break;
+
+    case "OPEN_URLS":
+      openUrlsInBatches(message.urls);
+      break;
+
+    case "LISTINGS_COUNT":
+      chrome.storage.local.get("progress", (data) => {
+        const progress = data.progress || {};
+        progress.totalListings = message.count;
+        progress.lastUpdated = new Date().toISOString();
+        chrome.storage.local.set({ progress });
+      });
+      break;
+
+    case "GET_DEVICE_ID":
+      chrome.storage.local.get("deviceId", (result) => {
+        sendResponse({ deviceId: result.deviceId });
+      });
+      return true; // keep message channel open
+
+    case "SCRAPE_SUCCESS":
+      updateProgress("scraped");
+      break;
+
+    case "SCRAPE_FAILED":
+      updateProgress("failed");
+      break;
+
+    default:
+      console.warn("⚠️ Unknown message type received:", message.type);
   }
 });
 
@@ -178,9 +246,7 @@ async function startCategoryScraping() {
 
       if (json.success && json.data) {
         currentCategory = json.data;
-        console.log("Locked category:", currentCategory.categoryName);
         chrome.storage.local.set({ currentCategory }, () => {
-          console.log("🔒 Category locked and stored:", currentCategory.categoryName);
         });
         openCurrentCategory(currentCategory);
         initProgressForCategory(json.data._id);
@@ -193,6 +259,7 @@ async function startCategoryScraping() {
   });
 }
 
+// Unlock current category and start next
 function unlockAndMoveToNextCategory() {
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(["deviceId", "currentCategory"], ({ deviceId, currentCategory: storedCategory }) => {
@@ -216,7 +283,6 @@ function unlockAndMoveToNextCategory() {
           return response.json();
         })
         .then((data) => {
-          console.log("✅ Category unlocked:", storedCategory.categoryName);
           chrome.storage.local.remove("currentCategory");
           currentCategory = null;
           resolve();
@@ -229,10 +295,12 @@ function unlockAndMoveToNextCategory() {
   });
 }
 
+// Open the category URL in a new tab and inject the automation script
 function openCurrentCategory(category) {
   chrome.tabs.create({ url: category.categoryUrl }, (tab) => {
     const tabId = tab.id;
 
+  // Wait for the tab to finish loading before injecting the script
     chrome.tabs.onUpdated.addListener(function listener(updatedTabId, info) {
       if (updatedTabId === tabId && info.status === "complete") {
         chrome.tabs.onUpdated.removeListener(listener);
@@ -245,12 +313,11 @@ let parentUrl = null;
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "SET_PARENT") {
     parentUrl = msg.parentUrl;
-    console.log("parentUrl>>>>>>>>", parentUrl);
   }
 });
 
+// Open listing URLs in new tabs, one at a time with delay
 function openUrlsInBatches(urls) {
-  console.log(`Request to open ${urls.length} URLs...`);
 
   // Defensive: ensure array
   const incoming = Array.isArray(urls) ? urls : [];
@@ -259,13 +326,10 @@ function openUrlsInBatches(urls) {
   const newUrls = incoming.filter((u) => !urlQueue.includes(u));
 
   if (newUrls.length === 0) {
-    console.log("No new URLs to add (all duplicates).");
     return;
   }
 
   urlQueue = urlQueue.concat(newUrls);
-
-  console.log(`Adding ${newUrls.length} new URLs to queue (queue length now ${urlQueue.length})`);
 
   let index = 0;
 
@@ -275,7 +339,6 @@ function openUrlsInBatches(urls) {
       const paused = scraperFlags?.isPaused;
       const stopped = scraperFlags?.isStopped;
       if (stopped) {
-        console.log("🛑 Stopped (persisted): no more URLs will be opened.");
         urlQueue = [];
         return;
       }
@@ -305,6 +368,7 @@ function openUrlsInBatches(urls) {
       });
 
       index++;
+      // Wait before opening next tab
       setTimeout(openNext, TAB_OPEN_DELAY);
     });
   }
@@ -312,6 +376,7 @@ function openUrlsInBatches(urls) {
   // start if not already processing
   if (!processing) {
     processing = true;
+    // Start opening URLs
     openNext();
     // processQueue() can remain as a fallback for other flows
   } else {
@@ -321,14 +386,12 @@ function openUrlsInBatches(urls) {
 }
 
 chrome.runtime.onConnect.addListener((port) => {
-  console.log("🧲 Port connected:", port.name);
 
   port.onMessage.addListener((message) => {
-    console.log("📨 Message on port:", message);
 
     if (message.type === "CATEGORY_DONE") {
       unlockAndMoveToNextCategory().then(() => {
-        port.postMessage({ status: "done" }); 
+        port.postMessage({ status: "done" }); // respond
         markProgressAsDone();
         startCategoryScraping();
       });

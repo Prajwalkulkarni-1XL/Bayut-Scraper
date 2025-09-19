@@ -9,6 +9,7 @@ function updateProgressDisplay() {
 
     const percent = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0;
 
+    // Update text fields
     document.getElementById("categoryName").textContent = currentCategory?.categoryName || "N/A";
     let statusText = progress?.status || "N/A";
     if (scraperFlags?.isStopped) statusText = "stopped";
@@ -20,6 +21,7 @@ function updateProgressDisplay() {
     document.getElementById("failed").textContent = failed;
     document.getElementById("lastUpdated").textContent = `Last Updated: ${progress?.lastUpdated || "N/A"}`;
     
+    // Update progress bar
     const fillEl = document.getElementById("progressFill");
     const percentEl = document.getElementById("progressPercent");
 
