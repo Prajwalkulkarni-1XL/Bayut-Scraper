@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startBtn.addEventListener("click", () => {
       chrome.runtime.sendMessage({ type: "START_SCRAPING" });
       chrome.storage.local.set({ scraperFlags: { isPaused: false, isStopped: false } }, () => {
-        applyFlagsToUI({ isPaused: tfalse, isStopped: false });
+        applyFlagsToUI({ isPaused: false, isStopped: false });
         updateProgressDisplay();
       });
     });
