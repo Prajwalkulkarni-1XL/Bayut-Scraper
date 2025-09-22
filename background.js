@@ -1,11 +1,13 @@
-let currentCategory = null;
-let isPaused = false;
-let isStopped = false;
-let urlQueue = [];
-let processing = false;
+importScripts("config.js");
+
+let currentCategory = null; // Currently locked category object
+let isPaused = false; // Pause flag for scraper
+let isStopped = false; // Stop flag for scraper
+let urlQueue = [];  // Queue of listing URLs to open
+let processing = false; // Tracks if queue processing is running
 
 // Constants
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = CONFIG.API_BASE_URL;
 const CATEGORY_NEXT_ENDPOINT = `${API_BASE_URL}/category/next`;
 const CATEGORY_UNLOCK_ENDPOINT = `${API_BASE_URL}/category/unlock`;
 
@@ -34,7 +36,9 @@ async function loadFlagsFromStorage() {
   });
 }
 
+// ------------------ Scraper Control ------------------
 function stopScraping() {
+  // Stop everything and clear queues/progress
   isStopped = true;
   isPaused = false;
   urlQueue = [];              
@@ -46,16 +50,19 @@ function stopScraping() {
 }
 
 function enqueueUrls(urls) {
+  // Add URLs to the queue and start processing if not already
   if (isStopped) return; 
   urlQueue.push(...urls);
   if (!processing) processQueue();
 }
 
 async function processQueue() {
+  // Process queued URLs one by one with respect to pause/stop flags
   if (processing) return;
   processing = true;
 
   while (urlQueue.length > 0) {
+    // Reload flags dynamically so user actions are respected mid-run
     const flags = await new Promise((resolve) => {
       chrome.storage.local.get(["scraperFlags"], (data) => {
         resolve(data.scraperFlags || { isPaused: false, isStopped: false });
@@ -75,18 +82,22 @@ async function processQueue() {
     const url = urlQueue.shift();
     if (!url) continue;
 
+    // Open tab in background
     await new Promise((resolve) =>
       chrome.tabs.create({ url, active: false }, () => resolve())
     );
 
+    // Wait before opening next tab
     await new Promise((res) => setTimeout(res, TAB_OPEN_DELAY));
   }
 
   processing = false;
 }
 
+// ------------------ Extension Setup ------------------
 loadFlagsFromStorage();
 
+// Generate a unique deviceId when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get("deviceId", (result) => {
     if (!result.deviceId) {
@@ -97,73 +108,13 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+// Track parent category URL for resuming purposes
+let parentUrl = null;
 
-//   if (message.type === "START_SCRAPING") {
-//     isPaused = false;
-//     isStopped = false;
-//     saveFlagsToStorage();
-//     startCategoryScraping();
-//   }
-
-//    if (message.type === "PAUSE_SCRAPING") {
-//     isPaused = true;
-//     saveFlagsToStorage();
-  
-//   }
-
-//   if (message.type === "RESUME_SCRAPING_DATA") {
-//     isPaused = false;
-//     saveFlagsToStorage();
-//      chrome.storage.local.get("lastOpened", (data) => {
-//     if (data?.lastOpened?.parentUrl) {
-//       chrome.tabs.create({ url: data.lastOpened.parentUrl, active: true });
-//     } else {
-//       console.warn("⚠️ No parentUrl found in storage. Cannot resume category properly.");
-//     }
-//   });
-//   }
-
-//   if (message.type === "STOP_SCRAPING") {
-//      stopScraping();
-//   }
-
-//   if (message.type === "RESUME_SCRAPING1") {
-//     chrome.storage.local.get("lastOpened", (data) => {
-//     chrome.tabs.create({ url: data.lastOpened.parentUrl });
-//     });
-//   }
-
-//   if (message.type === "OPEN_URLS") {
-//     // Open listing URLs in tabs
-//     openUrlsInBatches(message.urls);
-//   }
-
-//   if (message.type === "LISTINGS_COUNT") {
-//     chrome.storage.local.get("progress", (data) => {
-//       const progress = data.progress || {};
-//       progress.totalListings = message.count;  
-//       progress.lastUpdated = new Date().toISOString();
-//       chrome.storage.local.set({ progress });
-//     });
-//   }
-  
-// });
-
-// // Listen for messages from popup or cotent and send device id
-// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-//   if (message.type === "GET_DEVICE_ID") {
-//     chrome.storage.local.get("deviceId", (result) => {
-//       sendResponse({ deviceId: result.deviceId });
-//     });
-//     return true; // keep message channel open
-//   }
-// });
-
-// Fetch and lock one category to start scraping & Listen for messages from popup or cotent and send device id
-
+// Unified message listener for all runtime messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
+    // ------------------ Scraper Control ------------------
     case "START_SCRAPING":
       isPaused = false;
       isStopped = false;
@@ -200,10 +151,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
 
+    // ------------------ URL Handling ------------------
     case "OPEN_URLS":
       openUrlsInBatches(message.urls);
       break;
 
+    case "SET_PARENT":
+      // Save parent category URL for resuming
+      parentUrl = message.parentUrl;
+      console.log("Parent URL set:", parentUrl);
+      break;
+
+    // ------------------ Progress Tracking ------------------
     case "LISTINGS_COUNT":
       chrome.storage.local.get("progress", (data) => {
         const progress = data.progress || {};
@@ -213,12 +172,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
 
-    case "GET_DEVICE_ID":
-      chrome.storage.local.get("deviceId", (result) => {
-        sendResponse({ deviceId: result.deviceId });
-      });
-      return true; // keep message channel open
-
     case "SCRAPE_SUCCESS":
       updateProgress("scraped");
       break;
@@ -227,12 +180,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       updateProgress("failed");
       break;
 
+    // ------------------ Device ID ------------------
+    case "GET_DEVICE_ID":
+      chrome.storage.local.get("deviceId", (result) => {
+        sendResponse({ deviceId: result.deviceId });
+      });
+      return true; // keep message channel open
+
     default:
       console.warn("⚠️ Unknown message type received:", message.type);
   }
 });
 
+// ------------------ Category Handling ------------------
 async function startCategoryScraping() {
+  // Lock next category for this device and begin scraping
   chrome.storage.local.get("deviceId", async ({ deviceId }) => {
     try {
 
@@ -259,8 +221,8 @@ async function startCategoryScraping() {
   });
 }
 
-// Unlock current category and start next
 function unlockAndMoveToNextCategory() {
+  // Unlock current category and move to next
   return new Promise((resolve, reject) => {
     chrome.storage.local.get(["deviceId", "currentCategory"], ({ deviceId, currentCategory: storedCategory }) => {
       if (!deviceId || !storedCategory?._id) {
@@ -309,12 +271,7 @@ function openCurrentCategory(category) {
   });
 }
 
-let parentUrl = null;
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "SET_PARENT") {
-    parentUrl = msg.parentUrl;
-  }
-});
+// ------------------ URL Handling ------------------
 
 // Open listing URLs in new tabs, one at a time with delay
 function openUrlsInBatches(urls) {
@@ -351,6 +308,7 @@ function openUrlsInBatches(urls) {
       const url = urlQueue.shift();
       if (!url) return;
 
+      // Open tab in background
       chrome.tabs.create({ url, active: false }, () => {
         chrome.storage.local.set(
           {
@@ -385,6 +343,7 @@ function openUrlsInBatches(urls) {
   }
 }
 
+// ------------------ Progress Tracking ------------------
 chrome.runtime.onConnect.addListener((port) => {
 
   port.onMessage.addListener((message) => {
@@ -442,5 +401,3 @@ function markProgressAsDone() {
     chrome.storage.local.set({ progress });
   });
 }
-
-

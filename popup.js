@@ -1,7 +1,13 @@
+// -----------------------------
+// popup.js - Scraper Progress UI
+// -----------------------------
+
+// Function to update the progress display in the popup
 function updateProgressDisplay() {
   chrome.storage.local.get(["progress", "currentCategory", "scraperFlags"], (data) => {
     const { progress, currentCategory, scraperFlags } = data;
 
+    // Calculate progress stats
     const total = progress?.totalListings || 0;
     const scraped = progress?.scraped || 0;
     const failed = progress?.failed || 0;
@@ -60,9 +66,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Apply flags to the popup UI (show/hide buttons and status text)
   function applyFlagsToUI(flags) {
+    // Show/hide pause/resume buttons based on pause state
     if (pauseBtn) pauseBtn.style.display = flags?.isPaused ? "none" : "block";
     if (resumeBtn) resumeBtn.style.display = flags?.isPaused ? "block" : "none";
 
+    // Handle stopped state
     if (flags?.isStopped) {
       if (pauseBtn) pauseBtn.style.display = "none";
       if (resumeBtn) resumeBtn.style.display = "none";
@@ -70,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // Handle paused/running status
     if (flags?.isPaused) {
       if (statusEl) statusEl.textContent = "paused (persisted)";
     } else {
@@ -113,7 +122,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Event listeners (only attach if element exists)
   if (startBtn) {
     startBtn.addEventListener("click", () => {
+      // Signal background script to start scraping
       chrome.runtime.sendMessage({ type: "START_SCRAPING" });
+      // Update persistent flags and UI
       chrome.storage.local.set({ scraperFlags: { isPaused: false, isStopped: false } }, () => {
         applyFlagsToUI({ isPaused: false, isStopped: false });
         updateProgressDisplay();
@@ -182,6 +193,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initial load
-  loadFlagsToUI();
-  updateProgressDisplay();
+  loadFlagsToUI();  // Set buttons/status based on last saved state
+  updateProgressDisplay(); // Populate progress bar and stats
 });

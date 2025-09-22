@@ -1,6 +1,9 @@
+// Small helper to pause execution (used for delays while scraping)
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+// Parse query params if needed
 const urlParams = new URLSearchParams(window.location.search);
-const API_BASE_URL = "http://localhost:8000/api";
+// API endpoint base (local backend)
+const API_BASE_URL = CONFIG.API_BASE_URL;
 
 /**
  * Save errors locally in extension storage for review/debugging
@@ -16,6 +19,7 @@ function storeErrorInExtensionStorage(error, context = "General") {
     time: new Date().toISOString(),
   };
 
+  // Get previous errors, append the new one, and save back
   chrome.storage.local.get(["scrapeErrors"], (result) => {
     const existingErrors = result.scrapeErrors || [];
     existingErrors.push(newError);
@@ -28,8 +32,12 @@ function storeErrorInExtensionStorage(error, context = "General") {
  * Main data extraction logic from the property detail page
  */
 async function scrapData(deviceId) {
+   // Helper: get text from selector safely
   const text = (sel) => document.querySelector(sel)?.innerText?.trim() || null;
 
+   /**
+   * Extract info from <ul> lists following section headings
+   */
   const scrapeListSection = (headingTitle) => {
     const heading = Array.from(
       document.querySelectorAll("h1,h2,h3,h4,h5,h6")
@@ -49,6 +57,9 @@ async function scrapData(deviceId) {
     return out;
   };
 
+  /**
+   * Robust version of scrapeListSection (different DOM structure handling)
+   */
   function robustScrapeListSection(headingTitle) {
     const heading = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6")).find(
       (h) => h.textContent.trim().toLowerCase() === headingTitle.toLowerCase()
@@ -78,6 +89,9 @@ async function scrapData(deviceId) {
     return out;
   }
 
+   /**
+   * Extract government/regulatory details (e.g. RERA info)
+   */
   const getRegulatory = () => {
     const container =
       document.querySelector("div.ec122524._169c4895._07c05f81") ||
@@ -96,6 +110,9 @@ async function scrapData(deviceId) {
     return out;
   };
 
+  /**
+   * Scrape amenities (works for grouped & flat list formats)
+   */
   const getAmenities = () => {
     const out = {};
 
@@ -141,6 +158,9 @@ async function scrapData(deviceId) {
     return out;
   };
 
+   /**
+   * More reliable click simulation (handles JS event listeners)
+   */
   function realClick(el) {
     el.click(); // native click
     const evt = new MouseEvent("click", {
@@ -154,6 +174,9 @@ async function scrapData(deviceId) {
     }
   }
 
+   /**
+   * Scrape transaction history (tables inside "Similar Property Transactions" section)
+   */
   async function scrapeTransactions() {
     await wait(2000);
     // find the correct container
@@ -174,6 +197,7 @@ async function scrapData(deviceId) {
     const mainButtons = targetContainer.querySelectorAll("button.c6cb1d19");
     const allResults = [];
 
+     // Helper: scrape a transaction table
     const scrapeTable = (mainCategory, subCategory) => {
       const table = targetContainer.querySelector(".f6181c08");
       if (!table) return [];
@@ -230,6 +254,9 @@ async function scrapData(deviceId) {
     return allResults;
   }
 
+  /**
+   * Extract image URLs from property gallery
+   */
   function extractImageUrls() {
     const imageUrls = new Set();
 
@@ -262,6 +289,7 @@ async function scrapData(deviceId) {
     return Array.from(imageUrls);
   }
 
+  // --- Collect property info ---
   const priceText = text("span[aria-label='Price']") || text("span._105b8a67");
   const priceNum = priceText
     ? parseInt(priceText.replace(/[^\d]/g, ""), 10)
@@ -278,6 +306,7 @@ async function scrapData(deviceId) {
     ? Number((Number(priceNum) / Number(areaNum)).toFixed(2))
     : null;
 
+    // Construct payload for API
   const payload = {
     url: window.location.href,
     deviceId,
@@ -348,11 +377,12 @@ async function scrapData(deviceId) {
         },
       }),
     });
-
     window.close();
   }
 }
 
+// --- Entry point ---
+// Wait until page fully loads, then request deviceId from extension
 window.addEventListener("load", async () => {
   chrome.runtime.sendMessage({ type: "GET_DEVICE_ID" }, (response) => {
     if (response?.deviceId) {
@@ -363,6 +393,7 @@ window.addEventListener("load", async () => {
   });
 });
 
+// Success/failure signals sent to extension background script
 function reportScrapeSuccess() {
   chrome.runtime.sendMessage({ type: "SCRAPE_SUCCESS" });
 }

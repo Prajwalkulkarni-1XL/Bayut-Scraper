@@ -22,7 +22,9 @@
         "https://www.bayut.com/for-sale/*"
       ],
       "js": [
+        "config.js",
         "listingContent.js"
+        
       ]
     },
     {
@@ -30,6 +32,7 @@
         "https://www.bayut.com/property/*"
       ],
       "js": [
+        "config.js",
         "detailContent.js"
       ]
     }

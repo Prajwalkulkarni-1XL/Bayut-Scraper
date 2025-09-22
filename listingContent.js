@@ -1,21 +1,24 @@
 // -----------------------------------------------
-// Change according to need
-const MAX_RETRIES = 10;
-const RETRY_DELAY_MS = 1000;
-const SPA_CHECK_INTERVAL_MS = 1000;
-const BATCH_DELAY_MS = 2 * 60 * 1000;
-const NEXT_PAGE_DELAY_MS = 5 * 60 * 1000;
+// Configurable constants (tune based on need)
+// -----------------------------------------------
+const MAX_RETRIES = 10; // Max retries for waiting listings
+const RETRY_DELAY_MS = 1000; // Delay between retries
+const SPA_CHECK_INTERVAL_MS = 1000; // Interval to check URL changes in SPA
+const BATCH_DELAY_MS = 2 * 60 * 1000; // Delay before opening 2nd batch (2 minutes)
+const NEXT_PAGE_DELAY_MS = 5 * 60 * 1000; // Delay before moving to next page (5 minutes)// Delay before moving to next page (5 minutes)
 // -----------------------------------------------
 
 // Flags to control automation flow
 let isRunning = false;
 let lastUrl = location.href;
 
+// ---------------- Utility: Pause/Stop Handling ----------------
 function waitUntilResumed(callback) {
+  // Repeatedly check if scraper is paused or stopped before continuing
   function check() {
     getPersistentFlags((flags) => {
       if (flags.isStopped) {
-        return;
+        return; // Exit completely if stopped
       }
       if (flags.isPaused) {
         setTimeout(check, 1000); 
@@ -39,7 +42,9 @@ setInterval(() => {
   }
 }, SPA_CHECK_INTERVAL_MS);
 
+// ---------------- Storage: Persistent Flags ----------------
 function getPersistentFlags(callback) {
+  // Get pause/stop flags from background storage
   chrome.storage.local.get(["scraperFlags"], (data) => {
     const flags = data.scraperFlags || { isPaused: false, isStopped: false };
     callback(flags);
