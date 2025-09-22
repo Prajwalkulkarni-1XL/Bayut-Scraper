@@ -32,12 +32,12 @@ function storeErrorInExtensionStorage(error, context = "General") {
  * Main data extraction logic from the property detail page
  */
 async function scrapData(deviceId) {
-   // Helper: get text from selector safely
+  // Helper: get text from selector safely
   const text = (sel) => document.querySelector(sel)?.innerText?.trim() || null;
 
-   /**
-   * Extract info from <ul> lists following section headings
-   */
+  /**
+  * Extract info from <ul> lists following section headings
+  */
   const scrapeListSection = (headingTitle) => {
     const heading = Array.from(
       document.querySelectorAll("h1,h2,h3,h4,h5,h6")
@@ -89,9 +89,9 @@ async function scrapData(deviceId) {
     return out;
   }
 
-   /**
-   * Extract government/regulatory details (e.g. RERA info)
-   */
+  /**
+  * Extract government/regulatory details (e.g. RERA info)
+  */
   const getRegulatory = () => {
     const container =
       document.querySelector("div.ec122524._169c4895._07c05f81") ||
@@ -158,9 +158,9 @@ async function scrapData(deviceId) {
     return out;
   };
 
-   /**
-   * More reliable click simulation (handles JS event listeners)
-   */
+  /**
+  * More reliable click simulation (handles JS event listeners)
+  */
   function realClick(el) {
     el.click(); // native click
     const evt = new MouseEvent("click", {
@@ -174,9 +174,9 @@ async function scrapData(deviceId) {
     }
   }
 
-   /**
-   * Scrape transaction history (tables inside "Similar Property Transactions" section)
-   */
+  /**
+  * Scrape transaction history (tables inside "Similar Property Transactions" section)
+  */
   async function scrapeTransactions() {
     await wait(2000);
     // find the correct container
@@ -197,7 +197,7 @@ async function scrapData(deviceId) {
     const mainButtons = targetContainer.querySelectorAll("button.c6cb1d19");
     const allResults = [];
 
-     // Helper: scrape a transaction table
+    // Helper: scrape a transaction table
     const scrapeTable = (mainCategory, subCategory) => {
       const table = targetContainer.querySelector(".f6181c08");
       if (!table) return [];
@@ -217,7 +217,7 @@ async function scrapData(deviceId) {
             .toLowerCase()
             .replace(/\s*\(.*?\)/g, "")
             .trim();
-            // ↓ normalize: "Area (sqft)" -> "area", "Price" -> "price"
+          // ↓ normalize: "Area (sqft)" -> "area", "Price" -> "price"
           const normalizedKey = key.replace(/\s+/g, "_");
           record[normalizedKey] = cols[i]
             ? cols[i].innerText.replace(/\s+/g, " ").trim()
@@ -242,7 +242,7 @@ async function scrapData(deviceId) {
         }
       }
     } else {
-       // ✅ Case 2: no main buttons → directly loop sub buttons
+      // ✅ Case 2: no main buttons → directly loop sub buttons
       const subButtons = targetContainer.querySelectorAll("._9771ddac span");
       for (const subBtn of subButtons) {
         realClick(subBtn);
@@ -295,7 +295,7 @@ async function scrapData(deviceId) {
     ? parseInt(priceText.replace(/[^\d]/g, ""), 10)
     : null;
 
-    // Scrape similar transactions
+  // Scrape similar transactions
   const similarTransactions = await scrapeTransactions();
   const area = document.querySelector('[aria-label="Area"]')?.innerText;
   const beds = document.querySelector('[aria-label="Beds"]')?.innerText;
@@ -306,7 +306,7 @@ async function scrapData(deviceId) {
     ? Number((Number(priceNum) / Number(areaNum)).toFixed(2))
     : null;
 
-    // Construct payload for API
+  // Construct payload for API
   const payload = {
     url: window.location.href,
     deviceId,
@@ -356,7 +356,9 @@ async function scrapData(deviceId) {
 
     const result = await response.json();
     reportScrapeSuccess();
-    window.close();
+    if (result?.success) {
+      window.close();
+    }
   } catch (err) {
     console.error("Failed to send data to API:", err);
     storeErrorInExtensionStorage(err, "Failed to send data to API");
