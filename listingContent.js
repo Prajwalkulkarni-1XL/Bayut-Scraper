@@ -12,7 +12,25 @@ const NEXT_PAGE_DELAY_MS = 5 * 60 * 1000; // Delay before moving to next page (5
 let isRunning = false;
 let lastUrl = location.href;
 
+function storeErrorInExtensionStorage(error, context = "General") {
+  const newError = {
+    context,
+    error: error instanceof Error ? error.message : String(error),
+    url: window.location.href,
+    time: new Date().toISOString(),
+  };
+
+  // Get previous errors, append the new one, and save back
+  chrome.storage.local.get(["scrapeErrors"], (result) => {
+    const existingErrors = result.scrapeErrors || [];
+    existingErrors.push(newError);
+    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {
+    });
+  });
+}
+
 // ---------------- Utility: Pause/Stop Handling ----------------
+
 function waitUntilResumed(callback) {
   // Repeatedly check if scraper is paused or stopped before continuing
   function check() {
@@ -45,10 +63,20 @@ setInterval(() => {
 // ---------------- Storage: Persistent Flags ----------------
 function getPersistentFlags(callback) {
   // Get pause/stop flags from background storage
+  try {
   chrome.storage.local.get(["scraperFlags"], (data) => {
+    if (chrome.runtime.lastError) {
+        storeErrorInExtensionStorage(chrome.runtime.lastError, "getPersistentFlags");
+        callback({ isPaused: false, isStopped: false });
+        return;
+      }
     const flags = data.scraperFlags || { isPaused: false, isStopped: false };
     callback(flags);
   });
+}catch (err) {
+    storeErrorInExtensionStorage(err, "getPersistentFlags");
+    callback({ isPaused: false, isStopped: false });
+  }
 }
 
 // Wait until listing links are available, then begin automation
@@ -96,23 +124,27 @@ function runAutomation() {
         url.match(/https:\/\/www\.bayut\.com\/property\/details-\d+\.html/)
       )
     )];
-
+ 
     if (uniqueUrls.length === 0) {
       console.warn("⚠️ No valid URLs found.");
       isRunning = false;
       return;
     }
-
+ 
     const half = Math.ceil(uniqueUrls.length / 2);
     const firstBatch = uniqueUrls.slice(0, half);
     const secondBatch = uniqueUrls.slice(half);
 
+    try {
     // Save metadata
     chrome.runtime.sendMessage({ type: "LISTINGS_COUNT", count: uniqueUrls.length });
     chrome.runtime.sendMessage({ type: "SET_PARENT", parentUrl: window.location.href });
 
     // Always open first batch immediately
     chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: firstBatch });
+    } catch (err) {
+      storeErrorInExtensionStorage(err, "runAutomation-sendMessage");
+    }
 
     // 🔑 Pause/stop-aware scheduler
     function scheduleAction(actionFn, delayMs) {
@@ -133,7 +165,11 @@ function runAutomation() {
     // Open second batch (only once, pause/stop aware)
     if (secondBatch.length > 0) {
       scheduleAction(() => {
+        try {
         chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: secondBatch });
+        } catch (err) {
+          storeErrorInExtensionStorage(err, "runAutomation-secondBatch");
+        }
       }, BATCH_DELAY_MS);
     }
 
@@ -152,9 +188,13 @@ function goToNextPage() {
       isRunning = false;
       nextBtn.click();
     } else {
+       try {
       const port = chrome.runtime.connect({ name: "category" });
       port.postMessage({ type: "CATEGORY_DONE" });
       port.onMessage.addListener((response) => {
       });
+      } catch (err) {
+      storeErrorInExtensionStorage(err, "goToNextPage");
+    }
     }
 }

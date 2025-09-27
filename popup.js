@@ -2,40 +2,6 @@
 // popup.js - Scraper Progress UI
 // -----------------------------
 
-// Function to update the progress display in the popup
-function updateProgressDisplay() {
-  chrome.storage.local.get(["progress", "currentCategory", "scraperFlags"], (data) => {
-    const { progress, currentCategory, scraperFlags } = data;
-
-    // Calculate progress stats
-    const total = progress?.totalListings || 0;
-    const scraped = progress?.scraped || 0;
-    const failed = progress?.failed || 0;
-    const completed = scraped + failed;
-
-    const percent = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0;
-
-    // Update text fields
-    document.getElementById("categoryName").textContent = currentCategory?.categoryName || "N/A";
-    let statusText = progress?.status || "N/A";
-    if (scraperFlags?.isStopped) statusText = "stopped";
-    else if (scraperFlags?.isPaused) statusText = "paused";
-
-    document.getElementById("status").textContent = progress?.status || "N/A";
-    document.getElementById("total").textContent = total;
-    document.getElementById("scraped").textContent = scraped;
-    document.getElementById("failed").textContent = failed;
-    document.getElementById("lastUpdated").textContent = `Last Updated: ${progress?.lastUpdated || "N/A"}`;
-    
-    // Update progress bar
-    const fillEl = document.getElementById("progressFill");
-    const percentEl = document.getElementById("progressPercent");
-
-    fillEl.style.width = `${percent}%`;
-    percentEl.textContent = `${percent}%`;
-  });
-}
-
 // popup.js - cleaned and defensive version
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -49,15 +15,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const progressFillEl = document.getElementById("progressFill");
   const progressPercentEl = document.getElementById("progressPercent");
 
+  const siteSectionEl = document.getElementById("siteSection");
   const startBtn = document.getElementById("startScraping");
   const pauseBtn = document.getElementById("pauseScraping");
   const resumeBtn = document.getElementById("resumeScraping");
   const stopBtn = document.getElementById("stopScraping"); // may be null in HTML
   const quickResumeBtn = document.getElementById("quickresumeScraping");
   const refreshBtn = document.getElementById("refreshProgress");
-
+    
   // Utility: read persistent flags
-  function loadFlagsToUI() {
+  async function loadFlagsToUI() {
     chrome.storage.local.get(["scraperFlags"], (data) => {
       const flags = data.scraperFlags || { isPaused: false, isStopped: false };
       applyFlagsToUI(flags);
@@ -87,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Single progress display updater
-  function updateProgressDisplay() {
+  async function updateProgressDisplay() {
     chrome.storage.local.get(["progress", "currentCategory", "scraperFlags"], (data) => {
       const { progress = {}, currentCategory = null, scraperFlags = {} } = data;
 
@@ -119,22 +86,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Event listeners (only attach if element exists)
+  // --- siteSection dropdown handler ---
+  if (siteSectionEl) {
+
+    siteSectionEl.addEventListener("mousedown", () => {
+      const selectedValue = siteSectionEl.value;
+      console.log("Popup sending SITE_SELECTED:", selectedValue);
+
+      chrome.runtime.sendMessage({
+        type: "SITE_SELECTED",
+        siteValue: selectedValue,
+        site: "bayut"
+      });
+    });
+  }
+
+// Event listeners (only attach if element exists)
   if (startBtn) {
+     console.log('start1');
     startBtn.addEventListener("click", () => {
+      console.log('start2');
+      
       // Signal background script to start scraping
-      chrome.runtime.sendMessage({ type: "START_SCRAPING" });
+      chrome.runtime.sendMessage({ type: "START_SCRAPING"});
       // Update persistent flags and UI
       chrome.storage.local.set({ scraperFlags: { isPaused: false, isStopped: false } }, () => {
-        applyFlagsToUI({ isPaused: false, isStopped: false });
+        applyFlagsToUI({ isPaused: false, isStopped: false }); 
         updateProgressDisplay();
       });
     });
   }
 
   if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "PAUSE_SCRAPING", persistent: true });
+    pauseBtn.addEventListener("click", async () => {
       chrome.storage.local.set({ scraperFlags: { isPaused: true, isStopped: false } }, () => {
         applyFlagsToUI({ isPaused: true, isStopped: false });
         updateProgressDisplay();
@@ -143,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (resumeBtn) {
-    resumeBtn.addEventListener("click", () => {
+    resumeBtn.addEventListener("click", async () => {
       chrome.runtime.sendMessage({ type: "RESUME_SCRAPING_DATA", persistent: true });
       chrome.storage.local.set({ scraperFlags: { isPaused: false, isStopped: false } }, () => {
         applyFlagsToUI({ isPaused: false, isStopped: false });
@@ -153,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (stopBtn) {
-    stopBtn.addEventListener("click", () => {
+    stopBtn.addEventListener("click", async() => {
       chrome.runtime.sendMessage({ type: "STOP_SCRAPING" });
       chrome.storage.local.set({ scraperFlags: { isPaused: false, isStopped: true } }, () => {
         applyFlagsToUI({ isPaused: false, isStopped: true });

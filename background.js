@@ -16,6 +16,25 @@ const CATEGORY_UNLOCK_ENDPOINT = `${API_BASE_URL}/category/unlock`;
 const TAB_OPEN_DELAY = 500;
 // -----------------------------------------------
 
+function storeErrorInExtensionStorage(error, context = "General") {
+  const newError = {
+    context,
+    error: error instanceof Error ? error.message : String(error),
+    time: new Date().toISOString(),
+    url: "", // optional: background context, no URL
+    stack: error instanceof Error ? error.stack : null,
+  };
+
+  // Retrieve existing errors, append new one, and save back
+  chrome.storage.local.get(["scrapeErrors"], (result) => {
+    const existingErrors = result.scrapeErrors || [];
+    existingErrors.push(newError);
+    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {
+      console.log("Logged error in background:", newError);
+    });
+  });
+}
+
 // When the extension is installed, generate and store a device ID
 function saveFlagsToStorage() {
   chrome.storage.local.set(
@@ -83,9 +102,13 @@ async function processQueue() {
     if (!url) continue;
 
     // Open tab in background
+    try {
     await new Promise((resolve) =>
       chrome.tabs.create({ url, active: false }, () => resolve())
     );
+    } catch (err) {
+      storeErrorInExtensionStorage(err, "processQueue: opening tab failed");
+    }
 
     // Wait before opening next tab
     await new Promise((res) => setTimeout(res, TAB_OPEN_DELAY));
@@ -99,6 +122,7 @@ loadFlagsFromStorage();
 
 // Generate a unique deviceId when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
+  try {
   chrome.storage.local.get("deviceId", (result) => {
     if (!result.deviceId) {
       const newDeviceId = crypto.randomUUID();
@@ -106,6 +130,9 @@ chrome.runtime.onInstalled.addListener(() => {
       });
     }
   });
+  } catch (err) {
+    storeErrorInExtensionStorage(err, "onInstalled");
+  }
 });
 
 // Track parent category URL for resuming purposes
@@ -113,6 +140,7 @@ let parentUrl = null;
 
 // Unified message listener for all runtime messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  try{
   switch (message.type) {
     // ------------------ Scraper Control ------------------
     case "START_SCRAPING":
@@ -132,7 +160,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       saveFlagsToStorage();
       chrome.storage.local.get("lastOpened", (data) => {
         if (data?.lastOpened?.parentUrl) {
+          try {
           chrome.tabs.create({ url: data.lastOpened.parentUrl, active: true });
+           } catch (err) {
+              storeErrorInExtensionStorage(err, "RESUME_SCRAPING_DATA: opening tab failed");
+            }
         } else {
           console.warn("⚠️ No parentUrl found in storage. Cannot resume category properly.");
         }
@@ -146,8 +178,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "RESUME_SCRAPING1":
       chrome.storage.local.get("lastOpened", (data) => {
         if (data?.lastOpened?.parentUrl) {
+          try {
           chrome.tabs.create({ url: data.lastOpened.parentUrl });
-        }
+        } catch (err) {
+              storeErrorInExtensionStorage(err, "RESUME_SCRAPING1: opening tab failed");
+            }
+          }
       });
       break;
 
@@ -172,23 +208,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
 
+       // ------------------ Device ID ------------------
+    case "GET_DEVICE_ID":
+      chrome.storage.local.get("deviceId", (result) => {
+        sendResponse({ deviceId: result.deviceId });
+        console.log("deviceId",result.deviceId)
+      });
+      return true; // keep message channel open
+
     case "SCRAPE_SUCCESS":
       updateProgress("scraped");
+       if (sender.tab?.id) {
+          setTimeout(() => chrome.tabs.remove(sender.tab.id), 500); // close tab safely
+        }
       break;
 
     case "SCRAPE_FAILED":
       updateProgress("failed");
+      if (sender.tab?.id) {
+          setTimeout(() => chrome.tabs.remove(sender.tab.id), 500);
+        }
       break;
 
-    // ------------------ Device ID ------------------
-    case "GET_DEVICE_ID":
-      chrome.storage.local.get("deviceId", (result) => {
-        sendResponse({ deviceId: result.deviceId });
-      });
-      return true; // keep message channel open
+      case "SITE_SELECTED":
+        console.log("SITE_SELECTED", message.site);
+        if (message.site === "bayut") {
+          console.log("Bayut selected!");
+        } else {
+          console.log("Other site selected:", message.site);
+        }
+        break;
 
     default:
       console.warn("⚠️ Unknown message type received:", message.type);
+  }
+  }catch (err) {
+    storeErrorInExtensionStorage(err, "runtime.onMessage");
   }
 });
 
@@ -196,6 +251,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function startCategoryScraping() {
   // Lock next category for this device and begin scraping
   chrome.storage.local.get("deviceId", async ({ deviceId }) => {
+    console.log("deviceId",deviceId);
     try {
 
       if (!deviceId) {
@@ -204,8 +260,10 @@ async function startCategoryScraping() {
       }
 
       const res = await fetch(`${CATEGORY_NEXT_ENDPOINT}?deviceId=${deviceId}`);
-      const json = await res.json();
+      console.log("res",res)
 
+      const json = await res.json();
+      console.log("Fetched category:", json);
       if (json.success && json.data) {
         currentCategory = json.data;
         chrome.storage.local.set({ currentCategory }, () => {
@@ -216,9 +274,11 @@ async function startCategoryScraping() {
         console.warn("No more categories.");
       }
     } catch (err) {
-      console.error("Error locking category:", err);
+      // console.error("Error locking category:", err);
+       storeErrorInExtensionStorage(err, "startCategoryScraping");
     }
   });
+
 }
 
 function unlockAndMoveToNextCategory() {
@@ -259,9 +319,14 @@ function unlockAndMoveToNextCategory() {
 
 // Open the category URL in a new tab and inject the automation script
 function openCurrentCategory(category) {
-  chrome.tabs.create({ url: category.categoryUrl }, (tab) => {
-    const tabId = tab.id;
+       console.log("categoryyy:", category);
 
+  try {
+     console.log("Opening category URL:", category.categoryUrl);
+  chrome.tabs.create({ url: category.categoryUrl }, (tab) => {
+   
+    const tabId = tab.id;
+console.log("✅ Tab opened with ID:", tab.id);
   // Wait for the tab to finish loading before injecting the script
     chrome.tabs.onUpdated.addListener(function listener(updatedTabId, info) {
       if (updatedTabId === tabId && info.status === "complete") {
@@ -269,17 +334,18 @@ function openCurrentCategory(category) {
       }
     });
   });
+} catch (err) {
+    storeErrorInExtensionStorage(err, "openCurrentCategory");
+  }
 }
 
 // ------------------ URL Handling ------------------
 
 // Open listing URLs in new tabs, one at a time with delay
+
 function openUrlsInBatches(urls) {
-
-  // Defensive: ensure array
+  console.log('urls', urls);
   const incoming = Array.isArray(urls) ? urls : [];
-
-  // Dedupe incoming against current queue to avoid duplicates
   const newUrls = incoming.filter((u) => !urlQueue.includes(u));
 
   if (newUrls.length === 0) {
@@ -290,40 +356,50 @@ function openUrlsInBatches(urls) {
 
   let index = 0;
 
+  // Robust opener loop that clears `processing` when done.
   function openNext() {
-    if (urlQueue.length === 0) return;
     chrome.storage.local.get(["scraperFlags"], ({ scraperFlags }) => {
       const paused = scraperFlags?.isPaused;
       const stopped = scraperFlags?.isStopped;
+
       if (stopped) {
         urlQueue = [];
+        processing = false; // ensure we reset processing
         return;
       }
 
       if (paused) {
+        // retry after 1s while paused (keeps processing = true so we don't create multiple loops)
         setTimeout(openNext, 1000);
         return;
       }
 
       const url = urlQueue.shift();
-      if (!url) return;
+      if (!url) {
+        // queue is empty -> stop processing so future pushes can start it again
+        processing = false;
+        return;
+      }
 
-      // Open tab in background
-      chrome.tabs.create({ url, active: false }, () => {
-        chrome.storage.local.set(
-          {
-            lastOpened: {
-              parentUrl: parentUrl,
-              url,
-              index,
-              timestamp: new Date().toISOString(),
+      try {
+        chrome.tabs.create({ url, active: false }, () => {
+          chrome.storage.local.set(
+            {
+              lastOpened: {
+                parentUrl: parentUrl,
+                url,
+                index,
+                timestamp: new Date().toISOString(),
+              },
             },
-          },
-          () => {
-            console.log("💾 Saved last opened:", url, "at index:", index);
-          }
-        );
-      });
+            () => {
+              console.log("💾 Saved last opened:", url, "at index:", index);
+            }
+          );
+        });
+      } catch (err) {
+        storeErrorInExtensionStorage(err, "openUrlsInBatches: opening tab failed");
+      }
 
       index++;
       // Wait before opening next tab
@@ -331,14 +407,13 @@ function openUrlsInBatches(urls) {
     });
   }
 
-  // start if not already processing
+  // If not already running, start the loop. If it is running, new URLs are already appended.
   if (!processing) {
     processing = true;
-    // Start opening URLs
     openNext();
-    // processQueue() can remain as a fallback for other flows
   } else {
-    // If processing is already true, the queue will be consumed by processQueue/openNext loop
+    // If processing is true but the loop isn't actively running (guard against a stuck state),
+    // try to kick it — this is defensive and helps recover from earlier bugs.
     console.log("Queue already processing; new URLs will be opened in turn.");
   }
 }
@@ -353,6 +428,8 @@ chrome.runtime.onConnect.addListener((port) => {
         port.postMessage({ status: "done" }); // respond
         markProgressAsDone();
         startCategoryScraping();
+        }).catch((err) => {
+        storeErrorInExtensionStorage(err, "CATEGORY_DONE");
       });
     }
   });
@@ -370,16 +447,8 @@ function initProgressForCategory(categoryId) {
   chrome.storage.local.set({ progress });
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "SCRAPE_SUCCESS") {
-    updateProgress("scraped");
-  }
-  if (message.type === "SCRAPE_FAILED") {
-    updateProgress("failed");
-  }
-});
-
 function updateProgress(type) {
+  try {
   chrome.storage.local.get("progress", (data) => {
     const progress = data.progress || {};
     if (!progress) return;
@@ -391,13 +460,20 @@ function updateProgress(type) {
 
     chrome.storage.local.set({ progress });
   });
+  } catch (err) {
+    storeErrorInExtensionStorage(err, "updateProgress");
+  }
 }
 
 function markProgressAsDone() {
+  try {
   chrome.storage.local.get("progress", (data) => {
     const progress = data.progress || {};
     progress.status = "done";
     progress.lastUpdated = new Date().toISOString();
     chrome.storage.local.set({ progress });
   });
+  } catch (err) {
+    storeErrorInExtensionStorage(err, "markProgressAsDone");
+  }
 }

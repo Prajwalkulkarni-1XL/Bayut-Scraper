@@ -356,6 +356,7 @@ async function scrapData(deviceId) {
 
     const result = await response.json();
     reportScrapeSuccess();
+
     if (result?.success) {
       window.close();
     }
@@ -381,6 +382,7 @@ async function scrapData(deviceId) {
     });
     window.close();
   }
+
 }
 
 // --- Entry point ---
