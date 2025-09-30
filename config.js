@@ -4,6 +4,7 @@
 const CONFIG = {
   API_BASE_URL: "http://localhost:8000/api", // dev
   // API_BASE_URL: "https://your-production-api.com/api", // prod
+  siteValue: null, // dynamic
 };
 
 // Export for background/content scripts

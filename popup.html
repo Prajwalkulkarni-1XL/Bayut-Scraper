@@ -5,7 +5,7 @@
     <title>Bayut Scraper</title>
     <style>
       /* General body styling */
-    body {
+      body {
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         padding: 15px;
         width: 260px;
@@ -50,13 +50,13 @@
         background-position: right 10px center;
         background-size: 12px;
       }
-/* Header styling */
+      /* Header styling */
       h3 {
         text-align: center;
         margin-bottom: 20px;
         color: #2c3e50;
       }
-/* Default button styling */
+      /* Default button styling */
       button {
         background-color: #2ecc71;
         color: white;
@@ -71,17 +71,17 @@
         transition: background-color 0.2s;
       }
 
-    button:hover {
-      background-color: #27ae60;
-    }
-/* Container for progress display */
-    #progress {
-      background: #fff;
-      padding: 12px;
-      border-radius: 6px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      margin-top: 10px;
-    }
+      button:hover {
+        background-color: #27ae60;
+      }
+      /* Container for progress display */
+      #progress {
+        background: #fff;
+        padding: 12px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-top: 10px;
+      }
 
       #progress h4 {
         margin-top: 0;
@@ -89,7 +89,7 @@
         color: #2980b9;
         font-size: 15px;
       }
-/* Individual progress items: label + value */
+      /* Individual progress items: label + value */
       .progress-item {
         display: flex;
         justify-content: space-between;
@@ -97,56 +97,56 @@
         font-size: 13px;
       }
 
-    .progress-label {
-      font-weight: 500;
-    }
-/* Last updated timestamp */
-    #lastUpdated {
-      font-size: 11px;
-      text-align: right;
-      color: #888;
-      margin-top: 6px;
-    }
+      .progress-label {
+        font-weight: 500;
+      }
+      /* Last updated timestamp */
+      #lastUpdated {
+        font-size: 11px;
+        text-align: right;
+        color: #888;
+        margin-top: 6px;
+      }
 
-/* Progress bar container */
-    .progress-bar-container {
-      width: 100%;
-      height: 10px;
-      background-color: #e0e0e0;
-      border-radius: 5px;
-      margin-top: 10px;
-      overflow: hidden;
-    }
-/* Progress bar fill element */
-    .progress-bar-fill {
-      height: 100%;
-      background-color: #3498db;
-      width: 0%;
-      transition: width 0.4s ease;
-    }
-/* Progress percentage text below the bar */
-    .progress-percent {
-      font-size: 12px;
-      text-align: right;
-      margin-top: 5px;
-      color: #555;
-    }
-/* Container to display raw results or logs */
-    #results {
-      margin-top: 15px;
-      padding: 10px;
-      background: #fff;
-      border-radius: 6px;
-      font-family: monospace;
-      white-space: pre-wrap;
-      font-size: 13px;
-      color: #333;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-/* Secondary buttons (e.g., quick resume) */
-    button.secondary {
-      background-color: #0095ff;
-    }
+      /* Progress bar container */
+      .progress-bar-container {
+        width: 100%;
+        height: 10px;
+        background-color: #e0e0e0;
+        border-radius: 5px;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      /* Progress bar fill element */
+      .progress-bar-fill {
+        height: 100%;
+        background-color: #3498db;
+        width: 0%;
+        transition: width 0.4s ease;
+      }
+      /* Progress percentage text below the bar */
+      .progress-percent {
+        font-size: 12px;
+        text-align: right;
+        margin-top: 5px;
+        color: #555;
+      }
+      /* Container to display raw results or logs */
+      #results {
+        margin-top: 15px;
+        padding: 10px;
+        background: #fff;
+        border-radius: 6px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        font-size: 13px;
+        color: #333;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      /* Secondary buttons (e.g., quick resume) */
+      button.secondary {
+        background-color: #0095ff;
+      }
 
       button.secondary:hover {
         background-color: #2372a6;
@@ -159,6 +159,7 @@
 
     <label for="siteSection">Select Site Section:</label>
     <select id="siteSection" name="siteSection">
+      <option value="">Select site</option>
       <option value="bayut">Bayut</option>
       <option value="propertyFinder">Property Finder</option>
       <option value="dubizzle">Dubizzle</option>
@@ -170,45 +171,44 @@
     <button id="stopScraping">🛑 Stop</button>
     <button id="quickresumeScraping" class="secondary">⏯️ Quick Resume</button>
 
-  <div id="progress">
-    <h4>📊 Progress</h4>
-     <!-- Progress item: Category -->
-    <div class="progress-item">
-      <div class="progress-label">Category:</div>
-      <div id="categoryName">N/A</div>
+    <div id="progress">
+      <h4>📊 Progress</h4>
+      <!-- Progress item: Category -->
+      <div class="progress-item">
+        <div class="progress-label">Category:</div>
+        <div id="categoryName">N/A</div>
+      </div>
+      <!-- Progress item: Status -->
+      <div class="progress-item">
+        <div class="progress-label">Status:</div>
+        <div id="status">N/A</div>
+      </div>
+      <!-- Progress item: Total Listings -->
+      <div class="progress-item">
+        <div class="progress-label">Total Listings:</div>
+        <div id="total">0</div>
+      </div>
+      <!-- Progress item: Scraped -->
+      <div class="progress-item">
+        <div class="progress-label">Scraped:</div>
+        <div id="scraped">0</div>
+      </div>
+      <!-- Progress item: Failed -->
+      <div class="progress-item">
+        <div class="progress-label">Failed:</div>
+        <div id="failed">0</div>
+      </div>
+      <!-- Progress bar visual representation -->
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-percent" id="progressPercent">0%</div>
+      <!-- Button to manually refresh progress -->
+      <button id="refreshProgress">🔄 Refresh</button>
+      <!-- Last updated timestamp -->
+      <div id="lastUpdated">Last Updated: N/A</div>
     </div>
-     <!-- Progress item: Status -->
-    <div class="progress-item">
-      <div class="progress-label">Status:</div>
-      <div id="status">N/A</div>
-    </div>
-    <!-- Progress item: Total Listings -->
-    <div class="progress-item">
-      <div class="progress-label">Total Listings:</div>
-      <div id="total">0</div>
-    </div>
-    <!-- Progress item: Scraped -->
-    <div class="progress-item">
-      <div class="progress-label">Scraped:</div>
-      <div id="scraped">0</div>
-    </div>
-    <!-- Progress item: Failed -->
-    <div class="progress-item">
-      <div class="progress-label">Failed:</div>
-      <div id="failed">0</div>
-    </div>
-<!-- Progress bar visual representation -->
-    <div class="progress-bar-container">
-      <div class="progress-bar-fill" id="progressFill"></div>
-    </div>
-    <div class="progress-percent" id="progressPercent">0%</div>
- <!-- Button to manually refresh progress -->
-    <button id="refreshProgress">🔄 Refresh</button>
-    <!-- Last updated timestamp -->
-    <div id="lastUpdated">Last Updated: N/A</div>
-  </div>
-  <!-- Include the popup JS logic -->
-  <script src="popup.js"></script>
-</body>
-
+    <!-- Include the popup JS logic -->
+    <script src="popup.js"></script>
+  </body>
 </html>

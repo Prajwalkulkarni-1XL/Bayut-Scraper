@@ -1,6 +1,7 @@
 // -----------------------------------------------
 // Configurable constants (tune based on need)
 // -----------------------------------------------
+
 const MAX_RETRIES = 10; // Max retries for waiting listings
 const RETRY_DELAY_MS = 1000; // Delay between retries
 const SPA_CHECK_INTERVAL_MS = 1000; // Interval to check URL changes in SPA
@@ -24,8 +25,7 @@ function storeErrorInExtensionStorage(error, context = "General") {
   chrome.storage.local.get(["scrapeErrors"], (result) => {
     const existingErrors = result.scrapeErrors || [];
     existingErrors.push(newError);
-    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {
-    });
+    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {});
   });
 }
 
@@ -39,7 +39,7 @@ function waitUntilResumed(callback) {
         return; // Exit completely if stopped
       }
       if (flags.isPaused) {
-        setTimeout(check, 1000); 
+        setTimeout(check, 1000);
       } else {
         callback();
       }
@@ -64,16 +64,19 @@ setInterval(() => {
 function getPersistentFlags(callback) {
   // Get pause/stop flags from background storage
   try {
-  chrome.storage.local.get(["scraperFlags"], (data) => {
-    if (chrome.runtime.lastError) {
-        storeErrorInExtensionStorage(chrome.runtime.lastError, "getPersistentFlags");
+    chrome.storage.local.get(["scraperFlags"], (data) => {
+      if (chrome.runtime.lastError) {
+        storeErrorInExtensionStorage(
+          chrome.runtime.lastError,
+          "getPersistentFlags"
+        );
         callback({ isPaused: false, isStopped: false });
         return;
       }
-    const flags = data.scraperFlags || { isPaused: false, isStopped: false };
-    callback(flags);
-  });
-}catch (err) {
+      const flags = data.scraperFlags || { isPaused: false, isStopped: false };
+      callback(flags);
+    });
+  } catch (err) {
     storeErrorInExtensionStorage(err, "getPersistentFlags");
     callback({ isPaused: false, isStopped: false });
   }
@@ -88,10 +91,23 @@ function waitForListingsAndRunAutomation(retry = 0) {
 
     if (isRunning) return;
 
-    const listings = document.querySelectorAll("a[href*='/property/details-']");
+    let listings;
+    if (window.location.hostname.includes("bayut.com")) {
+      listings = document.querySelectorAll("a[href*='/property/details-']");
+    } else if (window.location.hostname.includes("propertyfinder.ae")) {
+      listings = document.querySelectorAll("a[href*='/en/plp/']");
+    } else if (window.location.hostname.includes("emiratesauction.com")) {
+      listings = document.querySelectorAll("a[href*='/auctions/properties/']");
+    } else {
+      listings = [];
+    }
+    console.log("listings", listings);
 
     if (listings.length === 0 && retry < MAX_RETRIES) {
-      setTimeout(() => waitForListingsAndRunAutomation(retry + 1), RETRY_DELAY_MS);
+      setTimeout(
+        () => waitForListingsAndRunAutomation(retry + 1),
+        RETRY_DELAY_MS
+      );
       return;
     }
 
@@ -107,6 +123,7 @@ function waitForListingsAndRunAutomation(retry = 0) {
 
 // Extract all property detail URLs and open them in two batches
 function runAutomation() {
+  console.log("🏁 Starting automation on", window.location.href);
   getPersistentFlags((flags) => {
     if (flags.isStopped) {
       isRunning = false;
@@ -118,30 +135,53 @@ function runAutomation() {
       return;
     }
 
-    const links = [...document.querySelectorAll("a[href*='/property/details-']")];
-    const uniqueUrls = [...new Set(
-      links.map((a) => a.href).filter((url) =>
-        url.match(/https:\/\/www\.bayut\.com\/property\/details-\d+\.html/)
-      )
-    )];
- 
+    let links;
+    let urlFilterRegex;
+
+    if (window.location.hostname.includes("bayut.com")) {
+      links = [...document.querySelectorAll("a[href*='/property/details-']")];
+      urlFilterRegex = /https:\/\/www\.bayut\.com\/property\/details-\d+\.html/;
+    } else if (window.location.hostname.includes("propertyfinder.ae")) {
+      links = [...document.querySelectorAll("a[href*='/en/plp/']")];
+      urlFilterRegex = /https:\/\/www\.propertyfinder\.ae\/en\/plp\//;
+    } else if (window.location.hostname.includes("emiratesauction.com")) {
+      links = [
+        ...document.querySelectorAll("a[href*='/auctions/properties/']"),
+      ];
+      urlFilterRegex =
+        /https:\/\/www\.emiratesauction\.com\/auctions\/properties\//;
+    }
+    const uniqueUrls = [
+      ...new Set(
+        links.map((a) => a.href).filter((url) => url.match(urlFilterRegex))
+      ),
+    ];
+
+    console.log("uniqueUrls", uniqueUrls);
+
     if (uniqueUrls.length === 0) {
       console.warn("⚠️ No valid URLs found.");
       isRunning = false;
       return;
     }
- 
+
     const half = Math.ceil(uniqueUrls.length / 2);
     const firstBatch = uniqueUrls.slice(0, half);
     const secondBatch = uniqueUrls.slice(half);
 
     try {
-    // Save metadata
-    chrome.runtime.sendMessage({ type: "LISTINGS_COUNT", count: uniqueUrls.length });
-    chrome.runtime.sendMessage({ type: "SET_PARENT", parentUrl: window.location.href });
+      // Save metadata
+      chrome.runtime.sendMessage({
+        type: "LISTINGS_COUNT",
+        count: uniqueUrls.length,
+      });
+      chrome.runtime.sendMessage({
+        type: "SET_PARENT",
+        parentUrl: window.location.href,
+      });
 
-    // Always open first batch immediately
-    chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: firstBatch });
+      // Always open first batch immediately
+      chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: firstBatch });
     } catch (err) {
       storeErrorInExtensionStorage(err, "runAutomation-sendMessage");
     }
@@ -166,7 +206,7 @@ function runAutomation() {
     if (secondBatch.length > 0) {
       scheduleAction(() => {
         try {
-        chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: secondBatch });
+          chrome.runtime.sendMessage({ type: "OPEN_URLS", urls: secondBatch });
         } catch (err) {
           storeErrorInExtensionStorage(err, "runAutomation-secondBatch");
         }
@@ -182,19 +222,19 @@ function runAutomation() {
 
 // Navigate to next page OR notify background script if done
 function goToNextPage() {
-
-    const nextBtn = document.querySelector('a[title="Next"]');
-    if (nextBtn && nextBtn.href) {
-      isRunning = false;
-      nextBtn.click();
-    } else {
-       try {
+  const nextBtn =
+    document.querySelector('a[title="Next"]') ||
+    document.querySelector('a[data-testid="pagination-page-next-link"]');
+  if (nextBtn && nextBtn.href) {
+    isRunning = false;
+    nextBtn.click();
+  } else {
+    try {
       const port = chrome.runtime.connect({ name: "category" });
       port.postMessage({ type: "CATEGORY_DONE" });
-      port.onMessage.addListener((response) => {
-      });
-      } catch (err) {
+      port.onMessage.addListener((response) => {});
+    } catch (err) {
       storeErrorInExtensionStorage(err, "goToNextPage");
     }
-    }
+  }
 }
