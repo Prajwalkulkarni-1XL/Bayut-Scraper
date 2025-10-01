@@ -232,13 +232,9 @@ async function scrapData(deviceId) {
     },
   };
 
-  console.log("📦 Extracted Full Payload:", payload);
-
-  // Send extracted data to the backend API
-  console.log("Sending data to API:", CONFIG.siteValue, payload);
-
   try {
     chrome.storage.local.get("siteValue", (ress) => {
+      console.log("Using siteValue:", ress.siteValue);
       const response = fetch(
         `${API_BASE_URL}/property/${ress.siteValue || CONFIG.siteValue}`,
         {
@@ -262,7 +258,7 @@ async function scrapData(deviceId) {
     storeErrorInExtensionStorage(err, "Failed to send data to API");
 
     // Report error to your backend
-    await fetch(`${API_BASE_URL}/err`, {
+    await fetch(`${API_BASE_URL}/error/${CONFIG.siteValue}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -701,7 +701,7 @@ async function scrapData(deviceId) {
     storeErrorInExtensionStorage(err, "Failed to send data to API");
 
     // Report error to your backend
-    await fetch(`${API_BASE_URL}/err`, {
+    await fetch(`${API_BASE_URL}/error/${CONFIG.siteValue}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
