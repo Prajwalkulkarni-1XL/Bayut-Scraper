@@ -18,6 +18,15 @@ function storeErrorInExtensionStorage(error, context = "General") {
     });
   });
 }
+async function waitForElement(selector, timeout = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const el = document.querySelector(selector);
+    if (el) return el;
+    await new Promise((res) => setTimeout(res, 300)); // retry every 300ms
+  }
+  return null;
+}
 
 async function scrapData(deviceId) {
   // Load siteValue from storage
@@ -33,6 +42,9 @@ async function scrapData(deviceId) {
 
   const wait = (ms) => new Promise((res) => setTimeout(res, ms));
 
+  await waitForElement('img[alt="Area"]');
+  await waitForElement("p"); // ensure text nodes exist
+  await waitForElement("img.object-cover"); // ensure images load
   //   const imagesUrl = async () => {
   //     const images = document.querySelectorAll(
   //       "#swiper-wrapper-815a8be69d1010bb5a img"
@@ -233,9 +245,9 @@ async function scrapData(deviceId) {
   };
 
   try {
-    chrome.storage.local.get("siteValue", (ress) => {
+    chrome.storage.local.get("siteValue", async (ress) => {
       console.log("Using siteValue:", ress.siteValue);
-      const response = fetch(
+      const response = await fetch(
         `${API_BASE_URL}/property/${ress.siteValue || CONFIG.siteValue}`,
         {
           method: "POST",
@@ -246,7 +258,7 @@ async function scrapData(deviceId) {
         }
       );
 
-      const result = response.json();
+      const result = await response.json();
       reportScrapeSuccess();
 
       if (result?.success) {
