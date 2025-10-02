@@ -76,7 +76,7 @@ function stopScraping() {
   processing = false;
   saveFlagsToStorage();
 
-  chrome.storage.local.remove(["currentCategory", "progress"], () => {});
+  chrome.storage.local.remove(["currentCategory", "progress"], () => { });
 }
 
 function enqueueUrls(urls) {
@@ -137,7 +137,7 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.local.get("deviceId", (result) => {
       if (!result.deviceId) {
         const newDeviceId = crypto.randomUUID();
-        chrome.storage.local.set({ deviceId: newDeviceId }, () => {});
+        chrome.storage.local.set({ deviceId: newDeviceId }, () => { });
       }
     });
   } catch (err) {
@@ -286,7 +286,7 @@ async function startCategoryScraping() {
       console.log("Fetched category:", json);
       if (json.success && json.data) {
         currentCategory = json.data;
-        chrome.storage.local.set({ currentCategory }, () => {});
+        chrome.storage.local.set({ currentCategory }, () => { });
         openCurrentCategory(currentCategory);
         initProgressForCategory(json.data._id);
       } else {

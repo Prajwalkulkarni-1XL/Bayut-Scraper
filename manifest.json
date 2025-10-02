@@ -3,12 +3,18 @@
   "name": "Bayut Scraper",
   "version": "2.0",
   "description": "Extracts property data from Bayut and navigates categories.",
-  "permissions": ["tabs", "scripting", "activeTab", "storage"],
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
   "host_permissions": [
     "http://localhost:8000/*",
     "https://www.bayut.com/*",
     "https://www.propertyfinder.ae/*",
-    "https://www.emiratesauction.com/*"
+    "https://www.emiratesauction.com/*",
+    "https://*.dubizzle.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,27 +25,75 @@
         "https://www.bayut.com/for-sale/*",
         "https://www.bayut.com/to-rent/*"
       ],
-      "js": ["config.js", "listingContent.js"]
+      "js": [
+        "config.js",
+        "listingContent.js"
+      ]
     },
     {
-      "matches": ["https://www.bayut.com/property/*"],
-      "js": ["config.js", "detailContent.js"]
+      "matches": [
+        "https://www.bayut.com/property/*"
+      ],
+      "js": [
+        "config.js",
+        "detailContent.js"
+      ]
     },
     {
-      "matches": ["https://www.propertyfinder.ae/en/*"],
-      "js": ["config.js", "listingContent.js"]
+      "matches": [
+        "https://www.propertyfinder.ae/en/*"
+      ],
+      "js": [
+        "config.js",
+        "listingContent.js"
+      ]
     },
     {
-      "matches": ["https://www.propertyfinder.ae/en/plp/*"],
-      "js": ["config.js", "propertyfinderDetailContent.js"]
+      "matches": [
+        "https://www.propertyfinder.ae/en/plp/*"
+      ],
+      "js": [
+        "config.js",
+        "propertyfinderDetailContent.js"
+      ]
     },
     {
-      "matches": ["https://www.emiratesauction.com/properties*"],
-      "js": ["config.js", "listingContent.js"]
+      "matches": [
+        "https://www.emiratesauction.com/properties*"
+      ],
+      "js": [
+        "config.js",
+        "listingContent.js"
+      ]
     },
     {
-      "matches": ["https://www.emiratesauction.com/auctions/properties/*"],
-      "js": ["config.js", "emiratesauctionDetailContent.js"]
+      "matches": [
+        "https://www.emiratesauction.com/auctions/properties/*"
+      ],
+      "js": [
+        "config.js",
+        "emiratesauctionDetailContent.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://*.dubizzle.com/en/*",
+        "https://*.dubizzle.com/new-projects/residential/*"
+      ],
+      "js": [
+        "config.js",
+        "listingContent.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://*.dubizzle.com/property-for-rent/*/*/*/*/*/*/*",
+        "https://*.dubizzle.com/property-for-sale/*/*/*/*/*/*/*"
+      ],
+      "js": [
+        "config.js",
+        "detailsDubizzleContent.js"
+      ]
     }
   ],
   "action": {
@@ -52,8 +106,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["detailContent.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "detailContent.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

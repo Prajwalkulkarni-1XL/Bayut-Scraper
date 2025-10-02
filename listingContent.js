@@ -25,7 +25,7 @@ function storeErrorInExtensionStorage(error, context = "General") {
   chrome.storage.local.get(["scrapeErrors"], (result) => {
     const existingErrors = result.scrapeErrors || [];
     existingErrors.push(newError);
-    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => {});
+    chrome.storage.local.set({ scrapeErrors: existingErrors }, () => { });
   });
 }
 
@@ -98,10 +98,12 @@ function waitForListingsAndRunAutomation(retry = 0) {
       listings = document.querySelectorAll("a[href*='/en/plp/']");
     } else if (window.location.hostname.includes("emiratesauction.com")) {
       listings = document.querySelectorAll("a[href*='/auctions/properties/']");
-    } else {
+    } else if (window.location.hostname.includes("dubizzle.com")) {
+      listings = document.querySelectorAll("a[data-testid^='listing-'][type='property'][href*='/property-']");
+    }
+    else {
       listings = [];
     }
-    console.log("listings", listings);
 
     if (listings.length === 0 && retry < MAX_RETRIES) {
       setTimeout(
@@ -150,14 +152,15 @@ function runAutomation() {
       ];
       urlFilterRegex =
         /https:\/\/www\.emiratesauction\.com\/auctions\/properties\//;
+    } else if (window.location.hostname.includes("dubizzle.com")) {
+      links = [...document.querySelectorAll("a[data-testid^='listing-'][type='property'][href*='/property-']")];
+      urlFilterRegex = /https:\/\/[^/]+dubizzle\.com\/(en\/)?(property-for-(rent|sale)|new-projects)\/.*\/\d*\/?/;
     }
     const uniqueUrls = [
       ...new Set(
         links.map((a) => a.href).filter((url) => url.match(urlFilterRegex))
       ),
     ];
-
-    console.log("uniqueUrls", uniqueUrls);
 
     if (uniqueUrls.length === 0) {
       console.warn("⚠️ No valid URLs found.");
@@ -224,7 +227,8 @@ function runAutomation() {
 function goToNextPage() {
   const nextBtn =
     document.querySelector('a[title="Next"]') ||
-    document.querySelector('a[data-testid="pagination-page-next-link"]');
+    document.querySelector('a[data-testid="pagination-page-next-link"]') ||
+    document.querySelector('.next_button');
   if (nextBtn && nextBtn.href) {
     isRunning = false;
     nextBtn.click();
@@ -232,7 +236,7 @@ function goToNextPage() {
     try {
       const port = chrome.runtime.connect({ name: "category" });
       port.postMessage({ type: "CATEGORY_DONE" });
-      port.onMessage.addListener((response) => {});
+      port.onMessage.addListener((response) => { });
     } catch (err) {
       storeErrorInExtensionStorage(err, "goToNextPage");
     }
