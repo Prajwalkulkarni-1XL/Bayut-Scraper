@@ -27,6 +27,7 @@ function storeErrorInExtensionStorage(error, context = "General") {
     existingErrors.push(newError);
     chrome.storage.local.set({ scrapeErrors: existingErrors }, () => { });
   });
+
 }
 
 // ---------------- Utility: Pause/Stop Handling ----------------
@@ -104,6 +105,9 @@ function waitForListingsAndRunAutomation(retry = 0) {
     else {
       listings = [];
     }
+    // const listings = document.querySelectorAll("a[href*='/property/details-']");
+    const loadingSpinner = document.querySelector(".loading, .spinner, .loader"); 
+    // Adjust selector to match your site's loading GIF
 
     if (listings.length === 0 && retry < MAX_RETRIES) {
       setTimeout(
@@ -114,7 +118,15 @@ function waitForListingsAndRunAutomation(retry = 0) {
     }
 
     if (listings.length === 0) {
-      console.warn("⚠️ No listings found after max retries.");
+      console.warn("⚠️ No listings found after max retries. Reloading page...");
+      location.reload(); // 🔄 force reload if nothing loads
+      return;
+    }
+
+    // Extra safeguard: If only spinner is showing, reload
+    if (loadingSpinner && listings.length === 0) {
+      console.warn("⚠️ Page stuck on loading spinner. Reloading...");
+      location.reload();
       return;
     }
 

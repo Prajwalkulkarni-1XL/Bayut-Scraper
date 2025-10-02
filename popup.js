@@ -103,21 +103,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       chrome.runtime.sendMessage({
         type: "SITE_SELECTED",
-        siteValue: selectedValue,
-      });
-      // Optionally store selection in local storage for persistence
-      chrome.storage.local.set({ siteValue: selectedValue }, () => {
-        console.log("✅ Site saved in local storage:", selectedValue);
+        siteValue: selectedValue
       });
     });
   }
 
   // Event listeners (only attach if element exists)
   if (startBtn) {
-    console.log("start1");
     startBtn.addEventListener("click", () => {
-      console.log("start2");
-
+      
       // Signal background script to start scraping
       chrome.runtime.sendMessage({ type: "START_SCRAPING" });
       // Update persistent flags and UI

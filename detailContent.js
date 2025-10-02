@@ -345,44 +345,60 @@ async function scrapData(deviceId) {
   };
 
   // Send extracted data to the backend API
-  try {
-    const response = await fetch(`${API_BASE_URL}/scrapData`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+  
+ // --- Send with retry ---
+  async function sendWithRetry(payload, maxRetry = 3, delay = 5000) {
+    for (let attempt = 1; attempt <= maxRetry; attempt++) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/property/bayut/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-    const result = await response.json();
-    reportScrapeSuccess();
+        // Force error if API returns non-2xx
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          throw new Error(`API responded with ${response.status}: ${errorText}`);
+        }
 
-    if (result?.success) {
-      window.close();
+        const result = await response.json();
+        reportScrapeSuccess();
+        if (result?.success) {
+          window.close();
+          return;
+        } else {
+          throw new Error("API returned unsuccessful response");
+        }
+      } catch (err) {
+        console.error(`Attempt ${attempt} failed:`, err);
+
+        if (attempt === maxRetry) {
+          storeErrorInExtensionStorage(err, "Failed to send data to API");
+          await fetch(`${API_BASE_URL}/error/bayut`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              data: {
+                message: err.message || "Unknown error",
+                stack: err.stack || null,
+                url: window.location.href,
+                time: new Date().toISOString(),
+                context: "scrapData error",
+              },
+            }),
+          });
+          reportScrapeFailure();
+          console.log("closing window after failure");
+          window.close();
+          return;
+        }
+
+        await wait(delay);
+      }
     }
-  } catch (err) {
-    console.error("Failed to send data to API:", err);
-    storeErrorInExtensionStorage(err, "Failed to send data to API");
-
-    // Report error to your backend
-    await fetch(`${API_BASE_URL}/err`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: {
-          message: err.message || "Unknown error",
-          stack: err.stack || null,
-          url: window.location.href,
-          time: new Date().toISOString(),
-          context: "scrapData error",
-        },
-      }),
-    });
-    window.close();
   }
-
+  await sendWithRetry(payload);
 }
 
 // --- Entry point ---

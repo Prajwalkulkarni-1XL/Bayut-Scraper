@@ -1,12 +1,19 @@
 importScripts("config.js");
 
+function safeRemoveTab(tabId) {
+  if (!tabId) return;
+  chrome.tabs.remove(tabId, () => {
+    if (chrome.runtime.lastError) {
+      // prevents "Unchecked runtime.lastError: No tab with id"
+    }
+  });
+}
+
 let currentCategory = null; // Currently locked category object
 let isPaused = false; // Pause flag for scraper
 let isStopped = false; // Stop flag for scraper
 let urlQueue = []; // Queue of listing URLs to open
 let processing = false; // Tracks if queue processing is running
-
-// Constants
 const API_BASE_URL = CONFIG.API_BASE_URL;
 let CATEGORY_NEXT_ENDPOINT;
 let CATEGORY_UNLOCK_ENDPOINT;
@@ -14,16 +21,13 @@ let CATEGORY_UNLOCK_ENDPOINT;
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SITE_SELECTED") {
     console.log("SITE_SELECTED response:", message.siteValue);
-
     CATEGORY_NEXT_ENDPOINT = `${API_BASE_URL}/category/${message.siteValue}/next`;
     CATEGORY_UNLOCK_ENDPOINT = `${API_BASE_URL}/category/${message.siteValue}/unlock`;
-
     console.log("API_BASE_URL", API_BASE_URL);
     console.log("CATEGORY_NEXT_ENDPOINT", CATEGORY_NEXT_ENDPOINT);
     console.log("CATEGORY_UNLOCK_ENDPOINT", CATEGORY_UNLOCK_ENDPOINT);
   }
 });
-
 // -----------------------------------------------
 // Change according to need
 const TAB_OPEN_DELAY = 500;
@@ -68,8 +72,9 @@ async function loadFlagsFromStorage() {
 }
 
 // ------------------ Scraper Control ------------------
+
 function stopScraping() {
-  // Stop everything and clear queues/progress
+  // Pause scraping but keep queue and progress intact
   isStopped = true;
   isPaused = false;
   urlQueue = [];
@@ -77,6 +82,25 @@ function stopScraping() {
   saveFlagsToStorage();
 
   chrome.storage.local.remove(["currentCategory", "progress"], () => { });
+  processing = false;
+  saveFlagsToStorage();
+
+  // Close the current parentUrl tab if available
+  chrome.storage.local.get("lastOpened", (data) => {
+    if (data?.lastOpened?.parentUrl) {
+      chrome.tabs.query({ url: data.lastOpened.parentUrl }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.remove(tabs[0].id, () => {
+            console.log(`🛑 Scraping stopped at parentUrl: ${data.lastOpened.parentUrl}`);
+          });
+        } else {
+          console.warn("⚠️ No open tab found for parentUrl to stop.");
+        }
+      });
+    } else {
+      console.warn("⚠️ No parentUrl found in storage. Cannot stop properly.");
+    }
+  });
 }
 
 function enqueueUrls(urls) {
@@ -237,19 +261,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return true; // keep message channel open
 
-      case "SCRAPE_SUCCESS":
-        updateProgress("scraped");
-        if (sender.tab?.id) {
-          setTimeout(() => chrome.tabs.remove(sender.tab.id), 500); // close tab safely
-        }
-        break;
+    case "SCRAPE_SUCCESS":
+      updateProgress("scraped");
+       safeRemoveTab(sender.tab?.id);
+      break;
 
-      case "SCRAPE_FAILED":
-        updateProgress("failed");
-        if (sender.tab?.id) {
-          setTimeout(() => chrome.tabs.remove(sender.tab.id), 500);
-        }
-        break;
+    case "SCRAPE_FAILED":
+      updateProgress("failed");
+      safeRemoveTab(sender.tab?.id);
+      break;
 
       case "SITE_SELECTED":
         console.log("SITE_SELECTED", message.site);
