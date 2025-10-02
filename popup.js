@@ -100,6 +100,8 @@ document.addEventListener("DOMContentLoaded", () => {
     siteSectionEl.addEventListener("change", () => {
       const selectedValue = siteSectionEl.value;
       console.log("Popup sending SITE_SELECTED:", selectedValue);
+      // Save selection persistently
+      chrome.storage.local.set({ siteValue: selectedValue });
 
       chrome.runtime.sendMessage({
         type: "SITE_SELECTED",
@@ -111,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Event listeners (only attach if element exists)
   if (startBtn) {
     startBtn.addEventListener("click", () => {
-      
+
       // Signal background script to start scraping
       chrome.runtime.sendMessage({ type: "START_SCRAPING" });
       // Update persistent flags and UI
@@ -156,6 +158,13 @@ document.addEventListener("DOMContentLoaded", () => {
   if (stopBtn) {
     stopBtn.addEventListener("click", async () => {
       chrome.runtime.sendMessage({ type: "STOP_SCRAPING" });
+
+      // Clear site selection
+      chrome.storage.local.remove("siteValue", () => {
+        if (siteSectionEl) {
+          siteSectionEl.value = ""; // Reset dropdown to default option
+        }
+      });
       chrome.storage.local.set(
         { scraperFlags: { isPaused: false, isStopped: true } },
         () => {
@@ -201,4 +210,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial load
   loadFlagsToUI(); // Set buttons/status based on last saved state
   updateProgressDisplay(); // Populate progress bar and stats
+
+  // Restore previously selected site
+  chrome.storage.local.get("siteValue", (data) => {
+    if (data.siteValue && siteSectionEl) {
+      siteSectionEl.value = data.siteValue;
+      console.log("Restored site selection:", data.siteValue);
+    }
+  });
 });
